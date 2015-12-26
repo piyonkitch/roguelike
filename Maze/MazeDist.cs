@@ -146,7 +146,7 @@ namespace Maze
                     for (GridDist tmp = grid[tox, toy]; tmp != grid[fromx, fromy]; tmp = tmp.parent)
                     {
                         if (tmp.parent == null)
-                        {  // XXX なぜか tmp.parent が null のことがあった。監視する 
+                        {
                             Console.WriteLine("{0}", routestr); 
                             return ""; 
                         }
