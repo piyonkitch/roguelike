@@ -43,6 +43,7 @@ namespace Maze
     {
         public MazeAlgo maze { get; set; }
         public Entity hero { get; set;  }
+        public List<Entity> companions { get; set; }
         public int floor { get; set;  }
         public List<Entity> entitylist { get; set; }
 
@@ -60,6 +61,15 @@ namespace Maze
             entitylist.Add(hero);
             System.Threading.Thread.Sleep(20);
 
+            companions = new List<Entity>();
+            companions.Add(new Companion(maze));
+            companions[0].changePosNear(maze, hero.xpos, hero.ypos, 3);
+            System.Threading.Thread.Sleep(20);
+            companions.Add(new Companion(maze));
+            companions[1].changePosNear(maze, hero.xpos, hero.ypos, 3);
+            System.Threading.Thread.Sleep(20);
+            foreach (Entity c in companions) entitylist.Add(c);
+
             initEnemyAndThings();               // entitylist に敵と物を配置
 
             // hero の周りだけ見えるようにする
@@ -76,6 +86,13 @@ namespace Maze
 
             entitylist.Add(hero);               // 既存のheroをentitylistに配置
             hero.changePos(maze);               // 壁以外のところへ移動
+
+            foreach (Entity c in companions)    // 既存のコンパニオンをentitylistに配置
+            {
+                entitylist.Add(c);
+                c.changePosNear(maze, hero.xpos, hero.ypos, 3);  // Heroの近くに配置
+            }
+
             initEnemyAndThings();               // entitylist に敵と物を配置
 
             // hero の周りだけ見えるようにする
@@ -270,7 +287,7 @@ namespace Maze
 
             do
             {                    // hero.frozen が > 0 なら繰り返す
-                foreach (Entity e in entitylist)
+                foreach (Entity e in entitylist.ToList())  // ToList() でスナップショットを作りループ中の変更を許容
                 {
                     e.move(maze, entitylist, hero);
                 }

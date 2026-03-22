@@ -47,6 +47,8 @@ namespace Maze
         public char graph { get; set; }     // "@" とか
         public char graphOrig { get; set; } // バックアップ
         public virtual string name { get; set; }    // 名前
+        public bool isCompanion { get; set; }       // コンパニオンフラグ
+        public bool isPartyMember { get; set; }     // パーティメンバーフラグ（Hero・Companion）
         public int hit { get; set; }        // ヒットポイント 
         public int hitmax { get; set; }     // ヒットポイント（最大） 
         public int strength { get; set; }   // 強さ
@@ -93,6 +95,18 @@ namespace Maze
             } while (maze.isWall(xpos, ypos));
         }
 
+        public void changePosNear(MazeAlgo maze, int cx, int cy, int maxDist)  // 指定座標の近くに配置
+        {
+            int tries = 0;
+            do
+            {
+                xpos = rnd.Next(Math.Max(0, cx - maxDist), Math.Min(Constant.NGRID, cx + maxDist + 1));
+                ypos = rnd.Next(Math.Max(0, cy - maxDist), Math.Min(Constant.NGRID, cy + maxDist + 1));
+                tries++;
+                if (tries > 100) { changePos(maze); return; }  // 見つからなければランダム配置
+            } while (maze.isWall(xpos, ypos) || (xpos == cx && ypos == cy));
+        }
+
         private bool tryMove(int x, int y, MazeAlgo maze, List<Entity> entitylist)
         {
             if (maze.isWall(x, y)) return false;
@@ -115,6 +129,16 @@ namespace Maze
                     else if (e.graph == '>')             // 下への階段
                     {
                         ;
+                    }
+                    else if (e.graph == '@' && this.isPartyMember && !this.isCompanion)
+                    {                                    // Hero → Companion: 位置を入れ替える
+                        e.xpos = this.xpos;
+                        e.ypos = this.ypos;
+                        return true;
+                    }
+                    else if (e.graph == '@' && this.isPartyMember)
+                    {                                    // Companion → @: 通れない
+                        return false;
                     }
                     else
                     {

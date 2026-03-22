@@ -46,6 +46,7 @@ namespace Maze
         {
             graph = graphOrig = '@';
             name = "Hero";
+            isPartyMember = true;
         }
     }
 }

@@ -89,7 +89,8 @@ namespace Maze
             {
                 if (logic.isEntitySeeable(e))
                 {
-                    g.DrawString(e.graph.ToString(), fnt, Brushes.Red, Dots * e.xpos, Dots * e.ypos);
+                    Brush brush = e.isCompanion ? Brushes.Blue : Brushes.Red;
+                    g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
                 }
             }
 
@@ -107,7 +108,12 @@ namespace Maze
             labelStatus.Text += "Str=     " + logic.hero.getStrength() + " Tough=" + logic.hero.getToughness() + "\n";
             labelStatus.Text += "Exp=     " + logic.hero.experience + "\n";
             labelStatus.Text += "$  =     " + logic.hero.gold + "\n";
-            labelStatus.Text += "Floor  = " + logic.floor;
+            labelStatus.Text += "Floor  = " + logic.floor + "\n";
+            for (int i = 0; i < logic.companions.Count; i++)
+            {
+                Entity c = logic.companions[i];
+                labelStatus.Text += "COM" + (i + 1) + " HP= " + c.hit + "/" + c.hitmax + "\n";
+            }
 
             // REVISIT 2015/09/06 Logic logic 中でゲームオーバー判定したほうが良いのだけど…
             if (logic.hero.hit <= 0)
