@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Maze
 {
@@ -38,6 +39,35 @@ namespace Maze
         // この距離以上離れたらヒーローを追いかける（マンハッタン距離）
         private const int FOLLOW_DISTANCE = 2;
 
+        public int mp { get; set; }
+        public int mpmax { get; set; }
+
+        // 魔法エフェクト（非シリアライズ：描画用一時データ）
+        [NonSerialized]
+        public List<MagicEffect> pendingMagicEffects;
+
+        [NonSerialized]
+        private Random magicRnd;
+
+        private struct MagicDir
+        {
+            public int dx, dy;
+            public char sym;
+            public MagicDir(int dx, int dy, char sym) { this.dx = dx; this.dy = dy; this.sym = sym; }
+        }
+
+        // 8方向: 左右は-, 上下は|, 右上/左下は/, 左上/右下は\
+        private static readonly MagicDir[] MAGIC_DIRS = {
+            new MagicDir( 1,  0, '-'),  // 右
+            new MagicDir(-1,  0, '-'),  // 左
+            new MagicDir( 0,  1, '|'),  // 下
+            new MagicDir( 0, -1, '|'),  // 上
+            new MagicDir( 1, -1, '/'),  // 右上
+            new MagicDir(-1,  1, '/'),  // 左下
+            new MagicDir( 1,  1, '\\'), // 右下
+            new MagicDir(-1, -1, '\\'), // 左上
+        };
+
         public Companion(MazeAlgo maze) : base(maze)
         {
             graph = graphOrig = '@';
@@ -45,21 +75,84 @@ namespace Maze
             isCompanion = true;
             isPartyMember = true;
             hit = hitmax = 5;
+            mp = mpmax = 1;
             strength = strengthmax = 2;
             toughness = 0;
+            pendingMagicEffects = new List<MagicEffect>();
+            magicRnd = new Random(Guid.NewGuid().GetHashCode());
+        }
+
+        private void ensureTransients()
+        {
+            if (pendingMagicEffects == null) pendingMagicEffects = new List<MagicEffect>();
+            if (magicRnd == null) magicRnd = new Random(Guid.NewGuid().GetHashCode());
         }
 
         public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
             if (!isLive()) return;
+            ensureTransients();
 
-            // HP が最大の 1/3 より多ければ、隣接する敵を攻撃する
+            // MP自然回復（20%）
+            if (magicRnd.Next(100) < 20 && mp < mpmax) mp++;
+
             if (hit * 3 > hitmax)
             {
+                // 魔法攻撃を試みる（MP > 0 のときのみ）
+                if (mp > 0)
+                {
+                    foreach (Entity e in entitylist)
+                    {
+                        if (e.isPartyMember) continue;
+                        if (!char.IsLetter(e.graph)) continue;
+                        if (e.hit <= 0) continue;
+
+                        foreach (MagicDir dir in MAGIC_DIRS)
+                        {
+                            if (!isEnemyInMagicRangeFrom(e, xpos, ypos, dir.dx, dir.dy, maze)) continue;
+                            if (hasFriendlyFireFrom(xpos, ypos, dir.dx, dir.dy, maze, entitylist)) continue;
+
+                            castMagic(dir.dx, dir.dy, dir.sym, maze, entitylist);
+                            autoEquip(entitylist);
+                            return;
+                        }
+                    }
+                }
+
+                // 魔法のために移動して射線を確保する（MP > 0 のときのみ）
+                if (mp > 0)
                 foreach (Entity e in entitylist)
                 {
-                    if (e.isPartyMember) continue;          // パーティメンバーは攻撃しない
-                    if (!char.IsLetter(e.graph)) continue;  // アイテム・死体は除く
+                    if (e.isPartyMember) continue;
+                    if (!char.IsLetter(e.graph)) continue;
+                    if (e.hit <= 0) continue;
+
+                    string[] moves4 = { "←", "→", "↑", "↓" };
+                    foreach (string mv in moves4)
+                    {
+                        int nx = xpos + (mv == "→" ? 1 : mv == "←" ? -1 : 0);
+                        int ny = ypos + (mv == "↓" ? 1 : mv == "↑" ? -1 : 0);
+                        if (nx < 0 || nx >= Constant.NGRID || ny < 0 || ny >= Constant.NGRID) continue;
+                        if (maze.isWall(nx, ny)) continue;
+
+                        foreach (MagicDir dir in MAGIC_DIRS)
+                        {
+                            if (!isEnemyInMagicRangeFrom(e, nx, ny, dir.dx, dir.dy, maze)) continue;
+                            if (hasFriendlyFireFrom(nx, ny, dir.dx, dir.dy, maze, entitylist)) continue;
+
+                            // この方向に移動すれば射線が開く
+                            base.manualmove(mv, maze, entitylist);
+                            autoEquip(entitylist);
+                            return;
+                        }
+                    }
+                }
+
+                // 近接攻撃フォールバック: 装備武器で隣接する敵を攻撃
+                foreach (Entity e in entitylist)
+                {
+                    if (e.isPartyMember) continue;
+                    if (!char.IsLetter(e.graph)) continue;
                     bool adjacent = (Math.Abs(e.xpos - xpos) == 1 && e.ypos == ypos) ||
                                     (e.xpos == xpos && Math.Abs(e.ypos - ypos) == 1);
                     if (!adjacent) continue;
@@ -75,8 +168,36 @@ namespace Maze
                     return;
                 }
             }
+            else
+            {
+                // HP が低い → 近くの敵から逃走（Hero から離れすぎない）
+                Entity nearest = getNearestEnemy(entitylist);
+                if (nearest != null)
+                {
+                    string fleeMove = getBestFleeMove(nearest, target, maze);
+                    if (fleeMove != "")
+                    {
+                        base.manualmove(fleeMove, maze, entitylist);
+                        autoEquip(entitylist);
+                        return;
+                    }
+                }
+            }
 
-            // 隣接する敵なし、または弱っている → Hero 追従
+            // 近くにアイテムがあれば拾いに行く（Hero から離れすぎない範囲で）
+            Entity nearItem = findNearestItem(entitylist, target, maze);
+            if (nearItem != null)
+            {
+                string itemRoute = maze.walk(xpos, ypos, nearItem.xpos, nearItem.ypos);
+                if (itemRoute != "")
+                {
+                    base.manualmove(itemRoute.Substring(0, 1), maze, entitylist);
+                    autoEquip(entitylist);
+                    return;
+                }
+            }
+
+            // Hero 追従
             int dist = Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos);
             if (dist <= FOLLOW_DISTANCE)
             {
@@ -89,6 +210,161 @@ namespace Maze
 
             base.manualmove(route.Substring(0, 1), maze, entitylist);
             autoEquip(entitylist);
+        }
+
+        // 近くの拾えるアイテムを探す（Heroから離れすぎない範囲）
+        private const int MAX_ITEM_SEEK_DIST = 8;   // Heroからこの距離まで離れて良い
+        private const int ITEM_SEARCH_RANGE  = 6;   // Companionからこの距離以内のアイテムを探す
+
+        private Entity findNearestItem(List<Entity> entitylist, Entity hero, MazeAlgo maze)
+        {
+            Entity nearest = null;
+            int bestDist = int.MaxValue;
+            foreach (Entity e in entitylist)
+            {
+                // 床に落ちているアイテムのみ対象
+                if (e.graph != '$' && e.graph != '%' &&
+                    e.graph != '!' && e.graph != '?' &&
+                    e.graph != ')' && e.graph != '[') continue;
+                // % は HP が満タンなら不要
+                if (e.graph == '%' && hit >= hitmax) continue;
+                int distToItem = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
+                if (distToItem == 0) continue;                  // すでに同じマスにいる
+                if (distToItem > ITEM_SEARCH_RANGE) continue;  // 遠すぎる
+                if (!maze.isVisible(e.xpos, e.ypos)) continue; // 見えていない
+                // アイテム地点がHeroから離れすぎるなら除外
+                int heroDistAtItem = Math.Abs(e.xpos - hero.xpos) + Math.Abs(e.ypos - hero.ypos);
+                if (heroDistAtItem > MAX_ITEM_SEEK_DIST) continue;
+                if (distToItem < bestDist) { bestDist = distToItem; nearest = e; }
+            }
+            return nearest;
+        }
+
+        // 視界内で最も近い敵を返す
+        private Entity getNearestEnemy(List<Entity> entitylist)
+        {
+            Entity nearest = null;
+            int minDist = int.MaxValue;
+            foreach (Entity e in entitylist)
+            {
+                if (e.isPartyMember) continue;
+                if (!char.IsLetter(e.graph)) continue;
+                if (e.hit <= 0) continue;
+                int d = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
+                if (d <= Constant.VISION_DISTANCE && d < minDist) { minDist = d; nearest = e; }
+            }
+            return nearest;
+        }
+
+        // 敵から遠ざかり、かつHeroから離れすぎない方向を返す（なければ""）
+        private string getBestFleeMove(Entity enemy, Entity hero, MazeAlgo maze)
+        {
+            const int MAX_DIST_FROM_HERO = 6;
+            string bestMove = "";
+            int bestScore = int.MinValue;
+            string[] moves = { "←", "→", "↑", "↓" };
+            foreach (string mv in moves)
+            {
+                int nx = xpos + (mv == "→" ? 1 : mv == "←" ? -1 : 0);
+                int ny = ypos + (mv == "↓" ? 1 : mv == "↑" ? -1 : 0);
+                if (nx < 0 || nx >= Constant.NGRID || ny < 0 || ny >= Constant.NGRID) continue;
+                if (maze.isWall(nx, ny)) continue;
+                // Heroから遠くなりすぎる方向は除外
+                int heroDistAfter = Math.Abs(nx - hero.xpos) + Math.Abs(ny - hero.ypos);
+                if (heroDistAfter > MAX_DIST_FROM_HERO) continue;
+                // 敵から遠ざかるほど高スコア
+                int enemyDistAfter = Math.Abs(nx - enemy.xpos) + Math.Abs(ny - enemy.ypos);
+                if (enemyDistAfter > bestScore) { bestScore = enemyDistAfter; bestMove = mv; }
+            }
+            return bestMove;
+        }
+
+        // (fromX, fromY) から (dx,dy) 方向 1〜2マスにenemyがいるか（壁で止まる）
+        private bool isEnemyInMagicRangeFrom(Entity enemy, int fromX, int fromY, int dx, int dy, MazeAlgo maze)
+        {
+            for (int step = 1; step <= 2; step++)
+            {
+                int tx = fromX + step * dx;
+                int ty = fromY + step * dy;
+                if (tx < 0 || tx >= Constant.NGRID || ty < 0 || ty >= Constant.NGRID) return false;
+                if (maze.isWall(tx, ty)) return false;
+                if (enemy.xpos == tx && enemy.ypos == ty) return true;
+            }
+            return false;
+        }
+
+        // (fromX, fromY) から (dx,dy) 方向の射線上にパーティメンバーがいるか（壁で止まる）
+        private bool hasFriendlyFireFrom(int fromX, int fromY, int dx, int dy, MazeAlgo maze, List<Entity> entitylist)
+        {
+            for (int step = 1; step <= 2; step++)
+            {
+                int tx = fromX + step * dx;
+                int ty = fromY + step * dy;
+                if (tx < 0 || tx >= Constant.NGRID || ty < 0 || ty >= Constant.NGRID) return false;
+                if (maze.isWall(tx, ty)) return false;
+                foreach (Entity f in entitylist)
+                {
+                    if (!f.isPartyMember) continue;
+                    if (f == this) continue;
+                    if (f.xpos == tx && f.ypos == ty) return true;
+                }
+            }
+            return false;
+        }
+
+        private void castMagic(int dx, int dy, char sym, MazeAlgo maze, List<Entity> entitylist)
+        {
+            mp--;   // MP消費
+            Console.WriteLine("{0} は魔法を放った！ (MP {1}/{2})", name, mp, mpmax);
+
+            for (int step = 1; step <= 2; step++)
+            {
+                int tx = xpos + step * dx;
+                int ty = ypos + step * dy;
+                if (tx < 0 || tx >= Constant.NGRID || ty < 0 || ty >= Constant.NGRID) break;
+                if (maze.isWall(tx, ty)) break;
+
+                foreach (Entity e in entitylist.ToList())
+                {
+                    if (e == this) continue;
+                    if (e.xpos != tx || e.ypos != ty) continue;
+                    if (!char.IsLetter(e.graph)) continue;
+
+                    int damage = magicRnd.Next(1, 5); // 1〜4ダメージ
+                    e.hit -= damage;
+                    Console.WriteLine("{0} は {1} に魔法で {2} のダメージを与えた", name, e.name, damage);
+
+                    if (e.hit <= 0)
+                    {
+                        e.graph = '%';
+                        Console.WriteLine("{0} は {1} を魔法で倒した", name, e.name);
+                        foreach (Item i in e.itemlist)
+                        {
+                            i.entity.xpos = e.xpos;
+                            i.entity.ypos = e.ypos;
+                            i.entity.graph = i.entity.graphOrig;
+                        }
+                        experience++;
+                        if (experience >= 5)
+                        {
+                            hitmax += magicRnd.Next(3) + 1;
+                            mpmax += magicRnd.Next(3) + 1;
+                            experience = 0;
+                            Console.WriteLine("{0} はレベルアップした！ MPmax={1}", name, mpmax);
+                        }
+                    }
+                }
+            }
+
+            pendingMagicEffects.Add(new MagicEffect
+            {
+                fromX  = xpos,
+                fromY  = ypos,
+                dx     = dx,
+                dy     = dy,
+                symbol = sym,
+                expiry = DateTime.Now.AddSeconds(1)
+            });
         }
 
         private void autoEquip(List<Entity> entitylist)
@@ -162,6 +438,24 @@ namespace Maze
                     dropToFloor(e, entitylist);
                     itemlist.RemoveAt(i);
                     Console.WriteLine("{0} は弱い {1} を捨てた", name, e.name);
+                }
+            }
+
+            // ポーション・スクロール: 識別済みで害があればdrop、それ以外は使用
+            for (int i = itemlist.Count - 1; i >= 0; i--)
+            {
+                if (!itemlist[i].entity.isUsable()) continue;
+                string itemName = itemlist[i].name;
+                if (itemlist[i].entity.isHarmful())
+                {
+                    dropToFloor(itemlist[i].entity, entitylist);
+                    itemlist.RemoveAt(i);
+                    Console.WriteLine("{0} は害のある {1} を捨てた", name, itemName);
+                }
+                else
+                {
+                    itemlist[i].use(this);
+                    if (itemlist[i].num == 0) itemlist.RemoveAt(i);
                 }
             }
         }

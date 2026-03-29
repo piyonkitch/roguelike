@@ -76,21 +76,23 @@ namespace Maze
             public string realname;
             public Use myuse;
             public bool identified;
+            public bool harmful;
 
-            public ScrollDefine (string nickname, Use myuse, string realname) {
+            public ScrollDefine (string nickname, Use myuse, string realname, bool harmful) {
                 this.nickname  = nickname;
                 this.myuse     = myuse;
                 this.realname  = realname;
                 this.identified = false;
+                this.harmful   = harmful;
             }
         };
         static ScrollDefine[] scrolldef = new ScrollDefine[] {
-                                       new ScrollDefine("Scroll labeled Foo",     useIdentify,        "Scroll of Identify"),
-                                       new ScrollDefine("Scroll labeled Bar",     useEnchantWeapon,   "Scroll of Enchant Weapon"),
-                                       new ScrollDefine("Scroll labeled Baz",     useEnchantArmor,    "Scroll of Enchant Armor"),
-                                       new ScrollDefine("Scroll labeled XXX",     useRustProofWeapon, "Scroll of Protect Weapon"),
-                                       new ScrollDefine("Scroll labeled YYY",     useRustProofArmor,  "Scroll of Protect Armor"),
-                                       new ScrollDefine("Scroll labeled ZZZ",     useSleep,           "Scroll of Sleep"),
+                                       new ScrollDefine("Scroll labeled Foo", useIdentify,        "Scroll of Identify",       false),
+                                       new ScrollDefine("Scroll labeled Bar", useEnchantWeapon,   "Scroll of Enchant Weapon", false),
+                                       new ScrollDefine("Scroll labeled Baz", useEnchantArmor,    "Scroll of Enchant Armor",  false),
+                                       new ScrollDefine("Scroll labeled XXX", useRustProofWeapon, "Scroll of Protect Weapon", false),
+                                       new ScrollDefine("Scroll labeled YYY", useRustProofArmor,  "Scroll of Protect Armor",  false),
+                                       new ScrollDefine("Scroll labeled ZZZ", useSleep,           "Scroll of Sleep",          true),
                                    };
 
         // スタティックコンストラクタで、nickname をシャッフルしておく
@@ -248,7 +250,18 @@ namespace Maze
             }
             Debug.Assert(false, "should return before here");
             return false;
-        }            
+        }
+
+        public override bool isHarmful()
+        {
+            if (!isIdentified()) return false;  // 未識別なら害か不明
+            for (int i = 0; i < scrolldef.Count(); i++)
+            {
+                if (scrolldef[i].realname == this.realname)
+                    return scrolldef[i].harmful;
+            }
+            return false;
+        }
 
         public override void identify(Entity user)              // scrolldef[].identified = true にすることで、name プロパティが realname を返すようになる
         {

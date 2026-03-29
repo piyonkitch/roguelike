@@ -45,8 +45,10 @@ namespace Maze
     public partial class RogueLike : Form
     {
         Logic logic = new Logic();
-        
-        const int Dots = 11;
+
+        const int Dots = 17;
+
+        private System.Windows.Forms.Timer magicTimer;
 
         // エントリーポイント
         public RogueLike()
@@ -54,7 +56,26 @@ namespace Maze
             InitializeComponent();
             Console.SetOut(new TextBoxWriter(textBoxConsole));
             logic.init();
+
+            magicTimer = new System.Windows.Forms.Timer();
+            magicTimer.Interval = 1000;
+            magicTimer.Tick += (s, ev) =>
+            {
+                magicTimer.Stop();
+                logic.magicEffects.Clear();
+                show();
+            };
+
             show();
+        }
+
+        private static int entityPriority(Entity e)
+        {
+            if (e.graph == '@' && !e.isCompanion) return 4; // Hero
+            if (e.graph == '@' && e.isCompanion)  return 3; // Companion
+            if (e.hit > 0)                         return 2; // 生きている敵
+            if (e.graph == '%')                    return 1; // 死体
+            return 0;                                        // アイテム
         }
 
         private void show(){
@@ -84,13 +105,36 @@ namespace Maze
             }
 
             // キャラクター（生物と物）を描画する
+            // 同じマスに複数エンティティがいる場合、優先度の高いものだけ描画する
             Font fnt = new Font("MS UI Gothic", Dots-1);
+            Dictionary<string, Entity> cellTop = new Dictionary<string, Entity>();
             foreach (Entity e in logic.entitylist)
             {
-                if (logic.isEntitySeeable(e))
+                bool seeable = logic.isEntitySeeable(e);
+                // 階段は一度見たら遠ざかっても表示し続ける
+                if (!seeable && e.graph == '>') seeable = logic.maze.isVisible(e.xpos, e.ypos);
+                if (!seeable) continue;
+                string key = e.xpos + "," + e.ypos;
+                if (!cellTop.ContainsKey(key) || entityPriority(e) > entityPriority(cellTop[key]))
+                    cellTop[key] = e;
+            }
+            foreach (Entity e in cellTop.Values)
+            {
+                Brush brush = e.isCompanion ? Brushes.Blue : Brushes.Red;
+                g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+            }
+
+            // 魔法エフェクトを描画する（シアン色）
+            foreach (MagicEffect ef in logic.magicEffects)
+            {
+                for (int step = 1; step <= 2; step++)
                 {
-                    Brush brush = e.isCompanion ? Brushes.Blue : Brushes.Red;
-                    g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                    int ex = ef.fromX + step * ef.dx;
+                    int ey = ef.fromY + step * ef.dy;
+                    if (ex < 0 || ex >= Constant.NGRID || ey < 0 || ey >= Constant.NGRID) break;
+                    if (logic.maze.isWall(ex, ey)) break;
+                    if (logic.maze.isVisible(ex, ey))
+                        g.DrawString(ef.symbol.ToString(), fnt, Brushes.Cyan, Dots * ex, Dots * ey);
                 }
             }
 
@@ -111,8 +155,10 @@ namespace Maze
             labelStatus.Text += "Floor  = " + logic.floor + "\n";
             for (int i = 0; i < logic.companions.Count; i++)
             {
-                Entity c = logic.companions[i];
-                labelStatus.Text += "COM" + (i + 1) + " HP= " + c.hit + "/" + c.hitmax + "\n";
+                Companion c = logic.companions[i] as Companion;
+                if (c == null) continue;
+                labelStatus.Text += "COM" + (i + 1) + " HP= " + c.hit + "/" + c.hitmax
+                                  + " MP= " + c.mp + "/" + c.mpmax + "\n";
             }
 
             // REVISIT 2015/09/06 Logic logic 中でゲームオーバー判定したほうが良いのだけど…
@@ -123,6 +169,16 @@ namespace Maze
                 Application.Restart();
 //                logic.init();
 //                show();
+            }
+        }
+
+        private void afterAction()
+        {
+            show();
+            if (logic.magicEffects.Count > 0)
+            {
+                magicTimer.Stop();
+                magicTimer.Start();
             }
         }
 
@@ -207,31 +263,31 @@ namespace Maze
         private void buttonUp_Click(object sender, EventArgs e)
         {
             logic.ctrlUp();
-            show();
+            afterAction();
         }
 
         private void buttonLeft_Click(object sender, EventArgs e)
         {
             logic.ctrlLeft();
-            show();
+            afterAction();
         }
 
         private void buttonRight_Click(object sender, EventArgs e)
         {
             logic.ctrlRight();
-            show();
+            afterAction();
         }
 
         private void buttonDown_Click(object sender, EventArgs e)
         {
             logic.ctrlDown();
-            show();
+            afterAction();
         }
 
         private void buttonStairDown_Click(object sender, EventArgs e)
         {
             logic.ctrlStairDown();
-            show();
+            afterAction();
         }
 
         private void buttonUse_Click(object sender, EventArgs e)
@@ -244,7 +300,7 @@ namespace Maze
             }
             listBoxItemlist.ClearSelected();
             listBoxItemlist.Hide();
-            show();
+            afterAction();
         }
 
         private void buttonDrop_Click(object sender, EventArgs e)
@@ -256,7 +312,7 @@ namespace Maze
             }
             listBoxItemlist.ClearSelected();
             listBoxItemlist.Hide();
-            show();
+            afterAction();
         }
 
         private void buttonWield_Click(object sender, EventArgs e)
@@ -269,7 +325,7 @@ namespace Maze
             }
             listBoxItemlist.ClearSelected();
             listBoxItemlist.Hide();
-            show();
+            afterAction();
         }
 
         private void buttonWear_Click(object sender, EventArgs e)
@@ -282,19 +338,19 @@ namespace Maze
             }
             listBoxItemlist.ClearSelected();
             listBoxItemlist.Hide();
-            show();
+            afterAction();
         }
 
         private void buttonTakeOffWeapon_Click(object sender, EventArgs e)
         {
             logic.ctrlTakeOffWeapon();
-            show();
+            afterAction();
         }
 
         private void buttonTakeOffArmor_Click(object sender, EventArgs e)
         {
             logic.ctrlTakeOffArmor();
-            show();
+            afterAction();
         }
 
         private void buttonInventory_Click(object sender, EventArgs e)
@@ -331,13 +387,13 @@ namespace Maze
         private void saveToolStripMenuItem_Click(object sender, EventArgs e)
         {
             logic.ctrlSave();
-            show();
+            afterAction();
         }
 
         private void loadToolStripMenuItem_Click(object sender, EventArgs e)
         {
             logic.ctrlLoad();
-            show();
+            afterAction();
         }
 
         private void toolStripMenuItemHelp_Click(object sender, EventArgs e)

@@ -88,14 +88,14 @@ namespace Maze
             // 
             this.pic.Location = new System.Drawing.Point(12, 25);
             this.pic.Name = "pic";
-            this.pic.Size = new System.Drawing.Size(259, 236);
+            this.pic.Size = new System.Drawing.Size(340, 340);
             this.pic.TabIndex = 0;
             this.pic.TabStop = false;
             this.pic.MouseDown += new System.Windows.Forms.MouseEventHandler(this.pic_MouseDown);
             // 
             // buttonUp
             // 
-            this.buttonUp.Location = new System.Drawing.Point(439, 30);
+            this.buttonUp.Location = new System.Drawing.Point(519, 30);
             this.buttonUp.Name = "buttonUp";
             this.buttonUp.Size = new System.Drawing.Size(36, 34);
             this.buttonUp.TabIndex = 4;
@@ -105,7 +105,7 @@ namespace Maze
             // 
             // buttonLeft
             // 
-            this.buttonLeft.Location = new System.Drawing.Point(397, 49);
+            this.buttonLeft.Location = new System.Drawing.Point(477, 49);
             this.buttonLeft.Name = "buttonLeft";
             this.buttonLeft.Size = new System.Drawing.Size(36, 34);
             this.buttonLeft.TabIndex = 5;
@@ -115,7 +115,7 @@ namespace Maze
             // 
             // buttonRight
             // 
-            this.buttonRight.Location = new System.Drawing.Point(481, 49);
+            this.buttonRight.Location = new System.Drawing.Point(561, 49);
             this.buttonRight.Name = "buttonRight";
             this.buttonRight.Size = new System.Drawing.Size(36, 34);
             this.buttonRight.TabIndex = 6;
@@ -125,7 +125,7 @@ namespace Maze
             // 
             // buttonDown
             // 
-            this.buttonDown.Location = new System.Drawing.Point(439, 70);
+            this.buttonDown.Location = new System.Drawing.Point(519, 70);
             this.buttonDown.Name = "buttonDown";
             this.buttonDown.Size = new System.Drawing.Size(36, 34);
             this.buttonDown.TabIndex = 7;
@@ -136,7 +136,7 @@ namespace Maze
             // labelStatus
             // 
             this.labelStatus.AutoSize = true;
-            this.labelStatus.Location = new System.Drawing.Point(296, 37);
+            this.labelStatus.Location = new System.Drawing.Point(376, 155);
             this.labelStatus.Name = "labelStatus";
             this.labelStatus.Size = new System.Drawing.Size(74, 12);
             this.labelStatus.TabIndex = 8;
@@ -144,7 +144,7 @@ namespace Maze
             // 
             // buttonStairDown
             // 
-            this.buttonStairDown.Location = new System.Drawing.Point(481, 95);
+            this.buttonStairDown.Location = new System.Drawing.Point(561, 95);
             this.buttonStairDown.Name = "buttonStairDown";
             this.buttonStairDown.Size = new System.Drawing.Size(36, 34);
             this.buttonStairDown.TabIndex = 9;
@@ -154,7 +154,7 @@ namespace Maze
             // 
             // textBoxConsole
             // 
-            this.textBoxConsole.Location = new System.Drawing.Point(295, 150);
+            this.textBoxConsole.Location = new System.Drawing.Point(375, 265);
             this.textBoxConsole.Multiline = true;
             this.textBoxConsole.Name = "textBoxConsole";
             this.textBoxConsole.Size = new System.Drawing.Size(292, 98);
@@ -162,7 +162,7 @@ namespace Maze
             // 
             // buttonUse
             // 
-            this.buttonUse.Location = new System.Drawing.Point(527, 30);
+            this.buttonUse.Location = new System.Drawing.Point(607, 30);
             this.buttonUse.Name = "buttonUse";
             this.buttonUse.Size = new System.Drawing.Size(36, 34);
             this.buttonUse.TabIndex = 11;
@@ -182,7 +182,7 @@ namespace Maze
             // 
             // buttonInventry
             // 
-            this.buttonInventry.Location = new System.Drawing.Point(567, 30);
+            this.buttonInventry.Location = new System.Drawing.Point(647, 30);
             this.buttonInventry.Name = "buttonInventry";
             this.buttonInventry.Size = new System.Drawing.Size(36, 34);
             this.buttonInventry.TabIndex = 13;
@@ -192,7 +192,7 @@ namespace Maze
             // 
             // buttonWield
             // 
-            this.buttonWield.Location = new System.Drawing.Point(527, 70);
+            this.buttonWield.Location = new System.Drawing.Point(607, 70);
             this.buttonWield.Name = "buttonWield";
             this.buttonWield.Size = new System.Drawing.Size(36, 34);
             this.buttonWield.TabIndex = 14;
@@ -202,7 +202,7 @@ namespace Maze
             // 
             // buttonWear
             // 
-            this.buttonWear.Location = new System.Drawing.Point(567, 70);
+            this.buttonWear.Location = new System.Drawing.Point(647, 70);
             this.buttonWear.Name = "buttonWear";
             this.buttonWear.Size = new System.Drawing.Size(36, 34);
             this.buttonWear.TabIndex = 15;
@@ -218,7 +218,7 @@ namespace Maze
             this.toolStripMenuItemHelp});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
-            this.menuStrip1.Size = new System.Drawing.Size(695, 24);
+            this.menuStrip1.Size = new System.Drawing.Size(775, 24);
             this.menuStrip1.TabIndex = 16;
             this.menuStrip1.Text = "menuStrip1";
             // 
@@ -254,7 +254,7 @@ namespace Maze
             // 
             // buttonTakeOffWeapon
             // 
-            this.buttonTakeOffWeapon.Location = new System.Drawing.Point(525, 110);
+            this.buttonTakeOffWeapon.Location = new System.Drawing.Point(605, 110);
             this.buttonTakeOffWeapon.Name = "buttonTakeOffWeapon";
             this.buttonTakeOffWeapon.Size = new System.Drawing.Size(36, 34);
             this.buttonTakeOffWeapon.TabIndex = 17;
@@ -264,7 +264,7 @@ namespace Maze
             // 
             // buttonTakeOffArmor
             // 
-            this.buttonTakeOffArmor.Location = new System.Drawing.Point(567, 110);
+            this.buttonTakeOffArmor.Location = new System.Drawing.Point(647, 110);
             this.buttonTakeOffArmor.Name = "buttonTakeOffArmor";
             this.buttonTakeOffArmor.Size = new System.Drawing.Size(36, 34);
             this.buttonTakeOffArmor.TabIndex = 18;
@@ -274,7 +274,7 @@ namespace Maze
             // 
             // buttonDrop
             // 
-            this.buttonDrop.Location = new System.Drawing.Point(609, 30);
+            this.buttonDrop.Location = new System.Drawing.Point(689, 30);
             this.buttonDrop.Name = "buttonDrop";
             this.buttonDrop.Size = new System.Drawing.Size(36, 34);
             this.buttonDrop.TabIndex = 19;
@@ -286,7 +286,7 @@ namespace Maze
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(695, 261);
+            this.ClientSize = new System.Drawing.Size(775, 390);
             this.Controls.Add(this.buttonDrop);
             this.Controls.Add(this.buttonTakeOffArmor);
             this.Controls.Add(this.buttonTakeOffWeapon);

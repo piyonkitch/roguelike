@@ -104,7 +104,7 @@ namespace Maze
                 ypos = rnd.Next(Math.Max(0, cy - maxDist), Math.Min(Constant.NGRID, cy + maxDist + 1));
                 tries++;
                 if (tries > 100) { changePos(maze); return; }  // 見つからなければランダム配置
-            } while (maze.isWall(xpos, ypos) || (xpos == cx && ypos == cy));
+            } while (maze.isWall(xpos, ypos) || (xpos == cx && ypos == cy) || maze.walk(xpos, ypos, cx, cy) == "");
         }
 
         private bool tryMove(int x, int y, MazeAlgo maze, List<Entity> entitylist)
@@ -267,6 +267,11 @@ namespace Maze
         public virtual bool isIdentified()
         {
             return true;                            // 通常のものは識別済み
+        }
+
+        public virtual bool isHarmful()
+        {
+            return false;                           // 通常のものは無害
         }
 
         public virtual void identify(Entity user)   // user が識別する

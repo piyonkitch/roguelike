@@ -77,20 +77,22 @@ namespace Maze
             public string realname;
             public Use myuse;
             public bool identified;
+            public bool harmful;
 
-            public PotionDefine (string nickname, Use myuse, string realname) {
+            public PotionDefine (string nickname, Use myuse, string realname, bool harmful) {
                 this.nickname = nickname;
                 this.myuse     = myuse;
                 this.realname  = realname;
                 this.identified = false;
+                this.harmful   = harmful;
             }
         };
         static PotionDefine[] potiondef = new PotionDefine[] {
-                                       new PotionDefine("Green Potion", useHealing,      "Healing Potion"),
-                                       new PotionDefine("Red Potion",   usePoison,       "Poison Potion"),
-                                       new PotionDefine("Gold Potion",  useGainStrength, "Gain Strength Potion"),
-                                       new PotionDefine("Black Potion", useLoseStrength, "Lose Strength Potion"),
-                                       new PotionDefine("Purple Potion", useAmnesia,     "Amnesia Potion"),
+                                       new PotionDefine("Green Potion",  useHealing,      "Healing Potion",       false),
+                                       new PotionDefine("Red Potion",    usePoison,       "Poison Potion",        true),
+                                       new PotionDefine("Gold Potion",   useGainStrength, "Gain Strength Potion", false),
+                                       new PotionDefine("Black Potion",  useLoseStrength, "Lose Strength Potion", true),
+                                       new PotionDefine("Purple Potion", useAmnesia,      "Amnesia Potion",       true),
                                    };
 
         // スタティックコンストラクタで、nickname をシャッフルしておく
@@ -208,6 +210,17 @@ namespace Maze
                 }
             }
             Debug.Assert(false, "should return before here");
+            return false;
+        }
+
+        public override bool isHarmful()
+        {
+            if (!isIdentified()) return false;  // 未識別なら害か不明
+            for (int i = 0; i < potiondef.Count(); i++)
+            {
+                if (potiondef[i].realname == this.realname)
+                    return potiondef[i].harmful;
+            }
             return false;
         }
 

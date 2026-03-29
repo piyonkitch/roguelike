@@ -39,8 +39,16 @@ using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Maze
 {
+    class MagicEffect
+    {
+        public int fromX, fromY, dx, dy;
+        public char symbol;
+        public DateTime expiry;
+    }
+
     class Logic
     {
+        public List<MagicEffect> magicEffects = new List<MagicEffect>();
         public MazeAlgo maze { get; set; }
         public Entity hero { get; set;  }
         public List<Entity> companions { get; set; }
@@ -253,13 +261,26 @@ namespace Maze
                 hero.amnesia = false;
             }
 
+            // Hero の視界
+            addVision(hero.xpos, hero.ypos);
+
+            // Companion の視界
+            foreach (Entity c in companions)
+            {
+                if (c.hit <= 0) continue;
+                addVision(c.xpos, c.ypos);
+            }
+        }
+
+        private void addVision(int cx, int cy)
+        {
             for (int visiondist = 1; visiondist <= Constant.VISION_DISTANCE; visiondist++)
             {
-                for (int y = Math.Max(hero.ypos - visiondist, 0); y <= Math.Min(hero.ypos + visiondist, Constant.NGRID - 1); y++)
+                for (int y = Math.Max(cy - visiondist, 0); y <= Math.Min(cy + visiondist, Constant.NGRID - 1); y++)
                 {
-                    for (int x = Math.Max(hero.xpos - visiondist, 0); x <= Math.Min(hero.xpos + visiondist, Constant.NGRID - 1); x++)
+                    for (int x = Math.Max(cx - visiondist, 0); x <= Math.Min(cx + visiondist, Constant.NGRID - 1); x++)
                     {
-                        if (isSeeThru(hero.xpos, hero.ypos, x, y)) maze.Visible(x, y); 
+                        if (isSeeThru(cx, cy, x, y)) maze.Visible(x, y);
                     }
                 }
             }
@@ -278,8 +299,19 @@ namespace Maze
 
         public bool isEntitySeeable(Entity e)
         {
-            return (isSeeThru(hero.xpos, hero.ypos, e.xpos, e.ypos) &&
-                    Math.Sqrt(Math.Pow(e.xpos - hero.xpos, 2) + Math.Pow(e.ypos - hero.ypos, 2)) <= Constant.VISION_DISTANCE);
+            if (isSeeThru(hero.xpos, hero.ypos, e.xpos, e.ypos) &&
+                Math.Sqrt(Math.Pow(e.xpos - hero.xpos, 2) + Math.Pow(e.ypos - hero.ypos, 2)) <= Constant.VISION_DISTANCE)
+                return true;
+
+            foreach (Entity c in companions)
+            {
+                if (c.hit <= 0) continue;
+                if (isSeeThru(c.xpos, c.ypos, e.xpos, e.ypos) &&
+                    Math.Sqrt(Math.Pow(e.xpos - c.xpos, 2) + Math.Pow(e.ypos - c.ypos, 2)) <= Constant.VISION_DISTANCE)
+                    return true;
+            }
+
+            return false;
         }
 
         public void tick()
@@ -323,6 +355,20 @@ namespace Maze
 
                 // 視界を更新
                 newvision();
+
+                // Companion の魔法エフェクトを収集する
+                foreach (Entity e in entitylist)
+                {
+                    if (!e.isCompanion) continue;
+                    Companion comp = e as Companion;
+                    if (comp?.pendingMagicEffects != null && comp.pendingMagicEffects.Count > 0)
+                    {
+                        magicEffects.AddRange(comp.pendingMagicEffects);
+                        comp.pendingMagicEffects.Clear();
+                    }
+                }
+                // 期限切れエフェクトを削除
+                magicEffects.RemoveAll(ef => ef.expiry <= DateTime.Now);
             } while (hero.frozen-- > 0);
         }
 
