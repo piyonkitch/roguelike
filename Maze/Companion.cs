@@ -330,7 +330,7 @@ namespace Maze
                     if (e.xpos != tx || e.ypos != ty) continue;
                     if (!char.IsLetter(e.graph)) continue;
 
-                    int damage = magicRnd.Next(1, 5); // 1〜4ダメージ
+                    int damage = magicRnd.Next(1, 3); // 1〜2ダメージ
                     e.hit -= damage;
                     Console.WriteLine("{0} は {1} に魔法で {2} のダメージを与えた", name, e.name, damage);
 
