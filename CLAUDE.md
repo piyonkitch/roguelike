@@ -19,7 +19,8 @@ roguelike/
     ├── Constant.cs         # 定数 (NGRID=20, VISION_DISTANCE=4)
     ├── Companion.cs        # AI制御のコンパニオン（2体）
     ├── [敵].cs             # Acid, Bat, Dragon, Hobbit, Ice, Kobold, Orc
-    └── [アイテム].cs       # Gold, Weapon, Armor, Potion, Scroll, Stair, Item
+    ├── [アイテム].cs       # Gold, Weapon, Armor, Potion, Scroll, Stair, StairUp, Item
+    └── StairUp.cs          # 上り階段エンティティ（graph='<'）
 ```
 
 ## アーキテクチャ
@@ -37,7 +38,16 @@ roguelike/
 ### マップ・視界
 - マップサイズ: 20×20
 - 視界: 半径4マス（壁による遮蔽判定あり）。**HeroとCompanion両方の視界を合成して表示**
-- フロア数: 4階層、下り階段（`>`）で次の階へ
+- フロア数: 4階層
+- 下り階段（`>`）で次の階へ。上り階段（`<`）で前の階に戻れる
+- `<` は各フロアの Hero 入口位置に固定配置される（1階には存在しない）
+- `<` で戻ると Hero は元の `>` の位置に、Companion は Hero 近くに再配置される
+- フロア状態（maze・entitylist・`>` 座標）は `FloorState` としてスタックに保存される
+
+### 迷路品質チェック
+- `init()` / `initNextLevel()` は条件を満たすまで迷路を再生成する（`do...while` ループ）
+- 条件: Hero から BFS で到達可能なマスが **80マス以上**、かつ **到達可能な武器が1個以上**
+- 1階では到達可能な武器として **Sting** が存在することを必須とする
 
 ### 戦闘
 - ダメージ = `攻撃者のstrength - 防御者のtoughness`（0以下なら無効）
@@ -54,12 +64,14 @@ roguelike/
 - Companion は `isPartyMember = true`、`isCompanion = true`
 - Hero が Companion のマスへ移動すると位置を入れ替える。Companion は自発的に入れ替えない
 - Companion の AI（`Companion.move()`）の優先順位:
-  1. **魔法攻撃**（HP > max/3 かつ MP > 0）: 8方向2マスに敵がいて射線上に味方がいなければ魔法を放つ
-  2. **射線確保移動**（HP > max/3 かつ MP > 0）: 隣接セルに移動すれば射線が開く場合は移動
-  3. **近接攻撃フォールバック**（HP > max/3）: 隣接敵を装備武器で攻撃
-  4. **逃走**（HP ≤ max/3 かつ視界内に敵）: 敵から遠ざかる方向へ移動。Heroから6マス以内に留まる
-  5. **アイテム探索**: 視界内・6マス以内・Heroから8マス以内のアイテムに向かう
-  6. **Hero追従**: マンハッタン距離 > 2 で `maze.walk()` で最短経路
+  1. **クエストアイテム配達**（名前付き武器を所持）: クエストギバー（Bilbo）のいる階ならそちらへ移動。隣接したら待機
+  2. **魔法攻撃**（HP > max/3 かつ MP > 0）: 8方向2マスに敵がいて射線上に味方がいなければ魔法を放つ
+  3. **射線確保移動**（HP > max/3 かつ MP > 0）: 隣接セルに移動すれば射線が開く場合は移動（**実際に移動できた場合のみ次の行動をスキップ**）
+  4. **近接攻撃フォールバック**（HP > max/3）: 隣接敵を装備武器で攻撃
+  5. **逃走**（HP ≤ max/3 かつ視界内に敵）: 敵から遠ざかる方向へ移動。Heroから6マス以内に留まる
+  6. **アイテム探索**: 視界内・6マス以内・Heroから8マス以内のアイテムに向かう
+  7. **Hero追従**: マンハッタン距離 > 2 で `maze.walk()` で最短経路
+- **Companion は Hobbit を一切攻撃しない**（魔法・近接・素手すべて）。`Entity.tryMove()` 内でも `isCompanion && e is Hobbit` の場合は攻撃せず通行不可とする
 - フロア移動時、CompanionはHeroの近く（距離3以内）に再配置される
 - Companion の配置（`changePosNear`）は `maze.walk()` でHeroへの到達可能性を確認してから確定する。到達不能な孤立マスには配置しない
 
@@ -77,7 +89,21 @@ roguelike/
 - `!`（ポーション）: 拾ったターンに即使用。識別済みで有害なら drop
 - `?`（スクロール）: 拾ったターンに即使用。識別済みで有害なら drop
 - `)`（武器）・`[`（鎧）: 拾って自動装備。今より弱い or 同レベルなら drop
+- **名前付き武器（`engraveName` あり）**: 装備・dropせずクエストアイテムとして保持
 - 有害判定: Poison/LoseStrength/Amnesia Potion、Scroll of Sleep
+
+### Hobbit
+- 全Hobbitに名前あり（Frodo, Samwise, Merry, Pippin, Lobelia, Fatty 等）
+- 挨拶時に名前を名乗る
+- 2階の Hobbit 1体が **Bilbo**（クエストギバー）: HP=10、攻撃されても怒らない
+- Bilbo は毎ターン隣接するパーティメンバー（Hero・Companion）が Sting を持っているか確認する。持っていれば受け取りクエスト完了（Heroの位置によらず実行）
+
+### クエスト: Stingを届けよ
+- **発生**: 2階で Bilbo に隣接すると依頼される
+- **目標**: 1階にスポーンする名前付きダガー「Sting」（`engraveName = "Sting"`）を Bilbo に届ける
+- **完了条件**: Bilbo に隣接した状態で Sting を所持（Hero または Companion どちらでも可）
+- **報酬**: Gold +30
+- Companion が Sting を拾った場合、自動的に Bilbo のもとへ届けに向かう
 
 ### アイテム記号
 | 記号 | 種類 |
@@ -90,10 +116,12 @@ roguelike/
 | `?`  | Scroll |
 | `%`  | 食べ物・死体 |
 | `>`  | 下り階段 |
+| `<`  | 上り階段 |
 
 ### セーブ・ロード
 - `BinaryFormatter` で `roguelike.bin` に保存
-- `maze`・`floor`・`entitylist` をシリアライズ
+- `maze`・`floor`・`entitylist`・`floorHistory` をシリアライズ
+- ロード後は `entitylist` から `isCompanion` フラグで `companions` リストを再構築し、`ensureTransients()` で非シリアライズフィールドを再初期化、`newvision()` で視界を更新する
 
 ## 既知の設計上の注意点
 
@@ -103,6 +131,8 @@ roguelike/
 - `tick()` の `foreach` は `entitylist.ToList()` でスナップショットを取っている。Companion の自動装備drop など `move()` 内で `entitylist` を変更する処理があるため
 - `Entity` に `isPartyMember`・`isCompanion` フラグあり。敵との `@` 衝突を攻撃にするか入れ替えにするかの判定に使用
 - `Companion` の `pendingMagicEffects`・`magicRnd` は `[NonSerialized]`。デシリアライズ後は `ensureTransients()` で再初期化される
-- セーブ・ロード後は `logic.companions` リストが再構築されない既知の問題あり（`entitylist` には含まれる）
+- `tryMove()` の `else` 分岐はすべての未知グラフ記号を「敵」として攻撃する。新しいエンティティを追加する際は `>` や `<` のように明示的に素通り処理を追加すること
+- `Companion` が `tryMove()` で Hobbit のいるマスに踏み込もうとした場合、攻撃せず通行不可とする処理を `tryMove()` 内に追加済み（`isCompanion && e is Hobbit`）
 - 視界は `Logic.addVision()` にまとめられており、`newvision()` から Hero と各 Companion 分を呼ぶ
 - 描画時に同一マスに複数エンティティが重なった場合、`Form1.entityPriority()` で優先度を判定し最上位のものだけ表示する（Hero > Companion > 生きている敵 > 死体 > アイテム）
+- 射線確保移動（Companion AI）で `manualmove()` が失敗した場合（Hobbit等に阻まれた場合）は `return` せず次の行動に進む。移動成功判定は座標変化で確認する

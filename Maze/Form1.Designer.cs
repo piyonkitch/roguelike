@@ -80,6 +80,7 @@ namespace Maze
             this.buttonTakeOffWeapon = new System.Windows.Forms.Button();
             this.buttonTakeOffArmor = new System.Windows.Forms.Button();
             this.buttonDrop = new System.Windows.Forms.Button();
+            this.buttonStairUp = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pic)).BeginInit();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -141,9 +142,9 @@ namespace Maze
             this.labelStatus.Size = new System.Drawing.Size(74, 12);
             this.labelStatus.TabIndex = 8;
             this.labelStatus.Text = "ステータス表示";
-            // 
+            //
             // buttonStairDown
-            // 
+            //
             this.buttonStairDown.Location = new System.Drawing.Point(561, 95);
             this.buttonStairDown.Name = "buttonStairDown";
             this.buttonStairDown.Size = new System.Drawing.Size(36, 34);
@@ -151,6 +152,16 @@ namespace Maze
             this.buttonStairDown.Text = "＞";
             this.buttonStairDown.UseVisualStyleBackColor = true;
             this.buttonStairDown.Click += new System.EventHandler(this.buttonStairDown_Click);
+            //
+            // buttonStairUp
+            //
+            this.buttonStairUp.Location = new System.Drawing.Point(477, 95);
+            this.buttonStairUp.Name = "buttonStairUp";
+            this.buttonStairUp.Size = new System.Drawing.Size(36, 34);
+            this.buttonStairUp.TabIndex = 20;
+            this.buttonStairUp.Text = "＜";
+            this.buttonStairUp.UseVisualStyleBackColor = true;
+            this.buttonStairUp.Click += new System.EventHandler(this.buttonStairUp_Click);
             // 
             // textBoxConsole
             // 
@@ -288,6 +299,7 @@ namespace Maze
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(775, 390);
             this.Controls.Add(this.buttonDrop);
+            this.Controls.Add(this.buttonStairUp);
             this.Controls.Add(this.buttonTakeOffArmor);
             this.Controls.Add(this.buttonTakeOffWeapon);
             this.Controls.Add(this.buttonWear);
@@ -339,6 +351,7 @@ namespace Maze
         private System.Windows.Forms.Button buttonTakeOffWeapon;
         private System.Windows.Forms.Button buttonTakeOffArmor;
         private System.Windows.Forms.Button buttonDrop;
+        private System.Windows.Forms.Button buttonStairUp;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemHelp;
     }
 }

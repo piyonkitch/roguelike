@@ -82,10 +82,20 @@ namespace Maze
             magicRnd = new Random(Guid.NewGuid().GetHashCode());
         }
 
-        private void ensureTransients()
+        internal void ensureTransients()
         {
             if (pendingMagicEffects == null) pendingMagicEffects = new List<MagicEffect>();
             if (magicRnd == null) magicRnd = new Random(Guid.NewGuid().GetHashCode());
+        }
+
+        // クエストアイテム（engraveName付き武器）を持っているか確認
+        private Item findQuestItem()
+        {
+            foreach (Item i in itemlist)
+            {
+                if (i.entity is Weapon w && w.engraveName != null) return i;
+            }
+            return null;
         }
 
         public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
@@ -95,6 +105,41 @@ namespace Maze
 
             // MP自然回復（20%）
             if (magicRnd.Next(100) < 20 && mp < mpmax) mp++;
+
+            // クエストアイテム配達: Stingを持っていたらBilboへ届ける
+            Item questItem = findQuestItem();
+            if (questItem != null)
+            {
+                Hobbit questGiver = null;
+                foreach (Entity e in entitylist)
+                {
+                    if (e is Hobbit h && h.isQuestGiver && !h.questCompleted && h.hit > 0)
+                    {
+                        questGiver = h;
+                        break;
+                    }
+                }
+                if (questGiver != null)
+                {
+                    int distToGiver = Math.Abs(questGiver.xpos - xpos) + Math.Abs(questGiver.ypos - ypos);
+                    if (distToGiver > 1)
+                    {
+                        string routeToGiver = maze.walk(xpos, ypos, questGiver.xpos, questGiver.ypos);
+                        if (routeToGiver != "")
+                        {
+                            base.manualmove(routeToGiver.Substring(0, 1), maze, entitylist);
+                            autoEquip(entitylist);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // 隣接: Hobbitのmove()がStingを受け取る。ここでは待機
+                        autoEquip(entitylist);
+                        return;
+                    }
+                }
+            }
 
             if (hit * 3 > hitmax)
             {
@@ -106,6 +151,7 @@ namespace Maze
                         if (e.isPartyMember) continue;
                         if (!char.IsLetter(e.graph)) continue;
                         if (e.hit <= 0) continue;
+                        if (e is Hobbit) continue;  // Hobbitは攻撃しない
 
                         foreach (MagicDir dir in MAGIC_DIRS)
                         {
@@ -126,6 +172,7 @@ namespace Maze
                     if (e.isPartyMember) continue;
                     if (!char.IsLetter(e.graph)) continue;
                     if (e.hit <= 0) continue;
+                    if (e is Hobbit) continue;  // Hobbitは攻撃しない
 
                     string[] moves4 = { "←", "→", "↑", "↓" };
                     foreach (string mv in moves4)
@@ -140,10 +187,14 @@ namespace Maze
                             if (!isEnemyInMagicRangeFrom(e, nx, ny, dir.dx, dir.dy, maze)) continue;
                             if (hasFriendlyFireFrom(nx, ny, dir.dx, dir.dy, maze, entitylist)) continue;
 
-                            // この方向に移動すれば射線が開く
+                            // この方向に移動すれば射線が開く（実際に移動できた場合のみ return）
+                            int prevX = xpos, prevY = ypos;
                             base.manualmove(mv, maze, entitylist);
-                            autoEquip(entitylist);
-                            return;
+                            if (xpos != prevX || ypos != prevY)
+                            {
+                                autoEquip(entitylist);
+                                return;
+                            }
                         }
                     }
                 }
@@ -153,6 +204,7 @@ namespace Maze
                 {
                     if (e.isPartyMember) continue;
                     if (!char.IsLetter(e.graph)) continue;
+                    if (e is Hobbit) continue;  // Hobbitは攻撃しない
                     bool adjacent = (Math.Abs(e.xpos - xpos) == 1 && e.ypos == ypos) ||
                                     (e.xpos == xpos && Math.Abs(e.ypos - ypos) == 1);
                     if (!adjacent) continue;
@@ -375,6 +427,7 @@ namespace Maze
                 Entity e = itemlist[i].entity;
                 if (!e.isWieldable()) continue;
                 if (e == weapon) continue;                      // 装備中はスキップ
+                if (e is Weapon qw && qw.engraveName != null) continue;  // クエストアイテムは装備しない
 
                 Weapon newWeapon = (Weapon)e;
                 if (weapon == null || newWeapon.sharpness > ((Weapon)weapon).sharpness)

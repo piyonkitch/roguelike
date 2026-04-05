@@ -112,7 +112,7 @@ namespace Maze
             {
                 bool seeable = logic.isEntitySeeable(e);
                 // 階段は一度見たら遠ざかっても表示し続ける
-                if (!seeable && e.graph == '>') seeable = logic.maze.isVisible(e.xpos, e.ypos);
+                if (!seeable && (e.graph == '>' || e.graph == '<')) seeable = logic.maze.isVisible(e.xpos, e.ypos);
                 if (!seeable) continue;
                 string key = e.xpos + "," + e.ypos;
                 if (!cellTop.ContainsKey(key) || entityPriority(e) > entityPriority(cellTop[key]))
@@ -287,6 +287,12 @@ namespace Maze
         private void buttonStairDown_Click(object sender, EventArgs e)
         {
             logic.ctrlStairDown();
+            afterAction();
+        }
+
+        private void buttonStairUp_Click(object sender, EventArgs e)
+        {
+            logic.ctrlStairUp();
             afterAction();
         }
 

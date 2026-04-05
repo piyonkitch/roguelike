@@ -44,6 +44,12 @@ namespace Maze
         bool angry;
         Random rnd = new Random();
 
+        public bool isQuestGiver { get; set; }
+        public bool questCompleted { get; set; }
+        private bool questRequested;
+        private const int QUEST_GOLD = 30;
+        private const string QUEST_ITEM_NAME = "Sting";
+
         public Hobbit(MazeAlgo maze) : base(maze)
         {
             name = "Hobbit";
@@ -51,22 +57,75 @@ namespace Maze
             angry = false;
         }
 
+        // 隣接パーティメンバーがStingを持っているか確認し、持っていれば Item を返す
+        private Item findStingOn(Entity pm)
+        {
+            foreach (Item i in pm.itemlist)
+            {
+                if (i.entity is Weapon w && w.engraveName == QUEST_ITEM_NAME) return i;
+            }
+            return null;
+        }
+
+        // クエスト完了処理
+        private void completeQuest(Item stingItem, Entity carrier, Entity hero)
+        {
+            carrier.itemlist.Remove(stingItem);
+            if (carrier.weapon == stingItem.entity) carrier.weapon = null;
+            hero.gold += QUEST_GOLD;
+            questCompleted = true;
+            Console.WriteLine("{0}：「{1}を持ってきてくれたのか！ありがとう！約束の金貨{2}枚だ」", name, QUEST_ITEM_NAME, QUEST_GOLD);
+        }
+
         public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)        // 多様性
         {
             if (!isLive()) return;
 
+            // クエストギバーのSting受け取りチェック（Heroの位置によらず毎ターン実行）
+            if (isQuestGiver && !questCompleted)
+            {
+                // Hero が隣接してSting を持っているか
+                if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) <= 1)
+                {
+                    Item stingItem = findStingOn(target);
+                    if (stingItem != null) { completeQuest(stingItem, target, target); return; }
+                }
+                // 隣接Companion が Sting を持っているか
+                foreach (Entity e in entitylist)
+                {
+                    if (!e.isCompanion) continue;
+                    if (Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos) > 1) continue;
+                    Item stingItem = findStingOn(e);
+                    if (stingItem != null) { completeQuest(stingItem, e, target); return; }
+                }
+            }
+
             if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) <= 1 && !angry)
             {
-                DateTime dt = DateTime.Now;
-                string message;
+                // クエストギバー：依頼メッセージ（Sting未入手の場合）
+                if (isQuestGiver && !questCompleted)
+                {
+                    if (!questRequested)
+                    {
+                        questRequested = true;
+                        Console.WriteLine("{0}：「こんにちは！私は{0}です。「{1}」というダガーを探しているんだ。見つけたら持ってきてくれないか？金貨{2}枚でどうだ？」", name, QUEST_ITEM_NAME, QUEST_GOLD);
+                    }
+                    else
+                    {
+                        Console.WriteLine("{0}：「まだ「{1}」を見つけていないのかい？」", name, QUEST_ITEM_NAME);
+                    }
+                    return;
+                }
 
+                // 通常の挨拶（名前あり）
+                DateTime dt = DateTime.Now;
                 if (dt.Hour > 7 && dt.Hour < 20)
                 {
+                    string message;
                     if (dt.Hour < 10) message = "おはよう";
                     else if (dt.Hour < 18) message = "こんにちは";
                     else message = "こんばんは";
-
-                    Console.WriteLine("{0} は、「{1}」と言った", name, message);
+                    Console.WriteLine("{0}：「{1}！私は{0}です」", name, message);
                 }
                 return;
             }
@@ -119,6 +178,7 @@ namespace Maze
 
         public override void beat(Entity attacker)
         {
+            if (isQuestGiver) return;   // クエストギバーは怒らない
             if (attacker.graph == '@')
             {
                 angry = true;

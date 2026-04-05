@@ -89,6 +89,7 @@
     <Compile Include="Hero.cs" />
     <Compile Include="Hobbit.cs" />
     <Compile Include="Stair.cs" />
+    <Compile Include="StairUp.cs" />
     <Compile Include="Gold.cs" />
     <Compile Include="Orc.cs" />
     <Compile Include="Entity.cs" />

@@ -46,6 +46,15 @@ namespace Maze
         public DateTime expiry;
     }
 
+    // 上の階に戻るために保存するフロア状態
+    [Serializable]
+    class FloorState
+    {
+        public MazeAlgo maze;
+        public List<Entity> entitylist;
+        public int stairX, stairY;  // Hero が > を使った座標（戻り先）
+    }
+
     class Logic
     {
         public List<MagicEffect> magicEffects = new List<MagicEffect>();
@@ -55,32 +64,85 @@ namespace Maze
         public int floor { get; set;  }
         public List<Entity> entitylist { get; set; }
 
+        // 上の階へ戻るためのフロア履歴（saveには含まれない）
+        private Stack<FloorState> floorHistory = new Stack<FloorState>();
+
+        // Hero から到達可能なマス数を BFS で数える
+        private int countReachableCells(int startX, int startY)
+        {
+            bool[,] visited = new bool[Constant.NGRID, Constant.NGRID];
+            var queue = new Queue<int[]>();
+            queue.Enqueue(new int[] { startX, startY });
+            visited[startX, startY] = true;
+            int count = 0;
+            int[][] dirs = { new[] { 1, 0 }, new[] { -1, 0 }, new[] { 0, 1 }, new[] { 0, -1 } };
+            while (queue.Count > 0)
+            {
+                int[] pos = queue.Dequeue();
+                count++;
+                foreach (int[] d in dirs)
+                {
+                    int nx = pos[0] + d[0], ny = pos[1] + d[1];
+                    if (nx >= 0 && nx < Constant.NGRID && ny >= 0 && ny < Constant.NGRID
+                        && !visited[nx, ny] && !maze.isWall(nx, ny))
+                    {
+                        visited[nx, ny] = true;
+                        queue.Enqueue(new int[] { nx, ny });
+                    }
+                }
+            }
+            return count;
+        }
+
+        // 迷路の品質チェック: 広さ十分 かつ 必要な武器が到達可能
+        private bool isMazeAcceptable()
+        {
+            if (countReachableCells(hero.xpos, hero.ypos) < 80) return false;
+            foreach (Entity e in entitylist)
+            {
+                if (e.graph != ')') continue;
+                if (maze.walk(hero.xpos, hero.ypos, e.xpos, e.ypos) == "") continue;
+                // 1階はStingが到達可能であることが必須
+                if (floor == 1)
+                {
+                    if (e is Weapon w && w.engraveName == "Sting") return true;
+                }
+                else
+                {
+                    return true;  // 2階以降は通常武器で可
+                }
+            }
+            return false;
+        }
+
         // Form の RogueLike() から呼ばれる
         public void init()
         {
             floor = 1;
+            floorHistory = new Stack<FloorState>();
 
-            maze = new MazeDist();
-            maze.initmaze();
+            do
+            {
+                maze = new MazeDist();
+                maze.initmaze();
+                entitylist = new List<Entity>();
 
-            entitylist = new List<Entity>();
+                hero = new Hero(maze);
+                entitylist.Add(hero);
+                System.Threading.Thread.Sleep(20);
 
-            hero = new Hero(maze);
-            entitylist.Add(hero);
-            System.Threading.Thread.Sleep(20);
+                companions = new List<Entity>();
+                companions.Add(new Companion(maze));
+                companions[0].changePosNear(maze, hero.xpos, hero.ypos, 3);
+                System.Threading.Thread.Sleep(20);
+                companions.Add(new Companion(maze));
+                companions[1].changePosNear(maze, hero.xpos, hero.ypos, 3);
+                System.Threading.Thread.Sleep(20);
+                foreach (Entity c in companions) entitylist.Add(c);
 
-            companions = new List<Entity>();
-            companions.Add(new Companion(maze));
-            companions[0].changePosNear(maze, hero.xpos, hero.ypos, 3);
-            System.Threading.Thread.Sleep(20);
-            companions.Add(new Companion(maze));
-            companions[1].changePosNear(maze, hero.xpos, hero.ypos, 3);
-            System.Threading.Thread.Sleep(20);
-            foreach (Entity c in companions) entitylist.Add(c);
+                initEnemyAndThings();
+            } while (!isMazeAcceptable());
 
-            initEnemyAndThings();               // entitylist に敵と物を配置
-
-            // hero の周りだけ見えるようにする
             newvision();
         }
 
@@ -88,23 +150,38 @@ namespace Maze
         {
             floor++;
 
-            maze = new MazeDist();
-            maze.initmaze();
-            entitylist = new List<Entity>();    // これで、前の階層の entitylist は忘れる
-
-            entitylist.Add(hero);               // 既存のheroをentitylistに配置
-            hero.changePos(maze);               // 壁以外のところへ移動
-
-            foreach (Entity c in companions)    // 既存のコンパニオンをentitylistに配置
+            do
             {
-                entitylist.Add(c);
-                c.changePosNear(maze, hero.xpos, hero.ypos, 3);  // Heroの近くに配置
-            }
+                maze = new MazeDist();
+                maze.initmaze();
+                entitylist = new List<Entity>();
 
-            initEnemyAndThings();               // entitylist に敵と物を配置
+                entitylist.Add(hero);
+                hero.changePos(maze);
 
-            // hero の周りだけ見えるようにする
+                // 上り階段を Hero の入口位置に配置
+                entitylist.Add(new StairUp(maze, hero.xpos, hero.ypos));
+                System.Threading.Thread.Sleep(20);
+
+                foreach (Entity c in companions)
+                {
+                    entitylist.Add(c);
+                    c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                }
+
+                initEnemyAndThings();
+            } while (!isMazeAcceptable());
+
             newvision();
+        }
+
+        // Hobbit の名前プール（Bilbo はクエストギバーとして別途生成）
+        private static readonly string[] HOBBIT_NAMES = { "Frodo", "Samwise", "Merry", "Pippin", "Lobelia", "Fatty" };
+        private int hobbitNameIdx = 0;
+
+        private string nextHobbitName()
+        {
+            return HOBBIT_NAMES[hobbitNameIdx++ % HOBBIT_NAMES.Length];
         }
 
         private void initEnemyAndThings()
@@ -134,11 +211,23 @@ namespace Maze
                 entitylist.Add(new Dragon(maze));
                 System.Threading.Thread.Sleep(20);
             }
-            // Hobbit
-            for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("H"), 1)); i++)
+            // Hobbit（全員に名前をつける。2階の最後の1体はBilbo＝クエストギバー）
+            int hobbitCount = int.Parse(elist[floor - 1].Substring(clist.IndexOf("H"), 1));
+            for (int i = 0; i < hobbitCount; i++)
             {
-                entitylist.Add(new Hobbit(maze));
+                Hobbit h = new Hobbit(maze);
                 System.Threading.Thread.Sleep(20);
+                if (floor == 2 && i == hobbitCount - 1)
+                {
+                    h.name = "Bilbo";
+                    h.isQuestGiver = true;
+                    h.hitmax = h.hit = 10;  // クエストギバーはタフ
+                }
+                else
+                {
+                    h.name = nextHobbitName();
+                }
+                entitylist.Add(h);
             }
             // Ice
             for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("I"), 1)); i++)
@@ -182,6 +271,15 @@ namespace Maze
                 entitylist.Add(new Weapon(maze, floor));
                 System.Threading.Thread.Sleep(20);
             }
+            // クエストアイテム: 1階にのみ「Sting」を配置
+            if (floor == 1)
+            {
+                Weapon sting = new Weapon(maze, 1);
+                sting.engraveName = "Sting";
+                entitylist.Add(sting);
+                System.Threading.Thread.Sleep(20);
+            }
+
             // Armor
             for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("["), 1)); i++)
             {
@@ -412,8 +510,48 @@ namespace Maze
             }
             if (stair)
             {
-                initNextLevel();                    // entitylist の書き換えは、foreach 外でやる
+                // 現在のフロア状態を保存（上に戻れるように）
+                floorHistory.Push(new FloorState
+                {
+                    maze      = this.maze,
+                    entitylist = this.entitylist,
+                    stairX    = hero.xpos,
+                    stairY    = hero.ypos
+                });
+                initNextLevel();
             }
+        }
+
+        public void ctrlStairUp()
+        {
+            // Hero が < の上にいるか確認
+            bool onStairUp = false;
+            foreach (Entity e in entitylist)
+            {
+                if (e.xpos == hero.xpos && e.ypos == hero.ypos && e.graph == '<')
+                {
+                    onStairUp = true;
+                    break;
+                }
+            }
+            if (!onStairUp || floorHistory.Count == 0) return;
+
+            FloorState prev = floorHistory.Pop();
+            floor--;
+            maze      = prev.maze;
+            entitylist = prev.entitylist;
+
+            // Hero を前の階の > の位置に配置
+            hero.xpos = prev.stairX;
+            hero.ypos = prev.stairY;
+
+            // Companion を Hero 近くに再配置
+            foreach (Entity c in companions)
+            {
+                c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+            }
+
+            newvision();
         }
 
         public void ctrlUse(int index)
@@ -482,6 +620,7 @@ namespace Maze
                     formatter.Serialize(stream, maze);
                     formatter.Serialize(stream, floor);
                     formatter.Serialize(stream, entitylist);
+                    formatter.Serialize(stream, floorHistory);
                 }
             }
             catch (System.IO.IOException ex)
@@ -507,6 +646,22 @@ namespace Maze
                     floor = (int)formatter.Deserialize(stream);
                     entitylist = (List<Entity>)formatter.Deserialize(stream);
                     hero = entitylist[0];
+                    floorHistory = (Stack<FloorState>)formatter.Deserialize(stream);
+
+                    // companions リストを entitylist から再構築
+                    companions = entitylist.Where(e => e.isCompanion).ToList();
+
+                    // Companion の非シリアライズフィールドを再初期化
+                    foreach (Entity c in companions)
+                    {
+                        if (c is Companion comp) comp.ensureTransients();
+                    }
+
+                    // 魔法エフェクトをリセット
+                    magicEffects.Clear();
+
+                    // 視界を現在のHero・Companion位置で更新
+                    newvision();
                 }
             }
             catch (System.IO.IOException ex)

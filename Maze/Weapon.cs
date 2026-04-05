@@ -45,9 +45,13 @@ namespace Maze
         private string origName;
         public override string name
         {
-            get { return ((isRust) ? "錆びた" : "") + origName; }
+            get {
+                string engraved = (engraveName != null) ? "「" + engraveName + "」の" : "";
+                return ((isRust) ? "錆びた" : "") + engraved + origName;
+            }
             set { origName = value; }
         }
+        public string engraveName { get; set; }  // 刻まれた名前（クエストアイテム等）
         public int sharpness { get; set; }
         private bool rustable; // 錆びやすい
         public bool isRust;    // 錆びた

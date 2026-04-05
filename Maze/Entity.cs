@@ -130,6 +130,10 @@ namespace Maze
                     {
                         ;
                     }
+                    else if (e.graph == '<')             // 上への階段
+                    {
+                        ;
+                    }
                     else if (e.graph == '@' && this.isPartyMember && !this.isCompanion)
                     {                                    // Hero → Companion: 位置を入れ替える
                         e.xpos = this.xpos;
@@ -145,6 +149,9 @@ namespace Maze
                         //
                         // 上記以外は、生きている敵の処理
                         //
+                        // Companion は Hobbit を攻撃しない（通れないが攻撃もしない）
+                        if (this.isCompanion && e is Hobbit) return false;
+
                         e.beat(this);                   // 攻撃していることを相手に伝える
                         //
                         // ヒットポイントの変化、経験値の変化は、ここから下に書く
