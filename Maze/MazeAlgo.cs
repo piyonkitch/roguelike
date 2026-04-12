@@ -46,6 +46,7 @@ namespace Maze
         abstract public string walk(int oldx, int oldy, int newx, int newy);
         // 壁
         abstract public bool isWall(int x, int y);
+        abstract public void breakWall(int x, int y);
         // 見えるかどうか
         abstract public bool isVisible(int x, int y);
         abstract public bool Visible(int x, int y);

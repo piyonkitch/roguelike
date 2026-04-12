@@ -152,6 +152,7 @@ namespace Maze
                         if (!char.IsLetter(e.graph)) continue;
                         if (e.hit <= 0) continue;
                         if (e is Hobbit) continue;  // Hobbitは攻撃しない
+                        if (e is Dwarf) continue;   // Dwarfは攻撃しない
 
                         foreach (MagicDir dir in MAGIC_DIRS)
                         {
@@ -173,6 +174,7 @@ namespace Maze
                     if (!char.IsLetter(e.graph)) continue;
                     if (e.hit <= 0) continue;
                     if (e is Hobbit) continue;  // Hobbitは攻撃しない
+                    if (e is Dwarf) continue;   // Dwarfは攻撃しない
 
                     string[] moves4 = { "←", "→", "↑", "↓" };
                     foreach (string mv in moves4)
@@ -205,6 +207,7 @@ namespace Maze
                     if (e.isPartyMember) continue;
                     if (!char.IsLetter(e.graph)) continue;
                     if (e is Hobbit) continue;  // Hobbitは攻撃しない
+                    if (e is Dwarf) continue;   // Dwarfは攻撃しない
                     bool adjacent = (Math.Abs(e.xpos - xpos) == 1 && e.ypos == ypos) ||
                                     (e.xpos == xpos && Math.Abs(e.ypos - ypos) == 1);
                     if (!adjacent) continue;
@@ -302,6 +305,8 @@ namespace Maze
                 if (e.isPartyMember) continue;
                 if (!char.IsLetter(e.graph)) continue;
                 if (e.hit <= 0) continue;
+                if (e is Hobbit) continue;  // Hobbitは敵扱いしない
+                if (e is Dwarf) continue;   // Dwarfは敵扱いしない
                 int d = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
                 if (d <= Constant.VISION_DISTANCE && d < minDist) { minDist = d; nearest = e; }
             }
@@ -381,6 +386,7 @@ namespace Maze
                     if (e == this) continue;
                     if (e.xpos != tx || e.ypos != ty) continue;
                     if (!char.IsLetter(e.graph)) continue;
+                    if (e is Dwarf) continue;   // Dwarfは攻撃しない
 
                     int damage = magicRnd.Next(1, 3); // 1〜2ダメージ
                     e.hit -= damage;

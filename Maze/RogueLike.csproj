@@ -86,6 +86,7 @@
     <Compile Include="Item.cs" />
     <Compile Include="Constant.cs" />
     <Compile Include="Dragon.cs" />
+    <Compile Include="Dwarf.cs" />
     <Compile Include="Hero.cs" />
     <Compile Include="Hobbit.cs" />
     <Compile Include="Stair.cs" />

@@ -163,6 +163,12 @@ namespace Maze
             return grid[x, y].isWall;
         }
 
+        // Break wall at (x, y).
+        public override void breakWall(int x, int y)
+        {
+            grid[x, y].isWall = false;
+        }
+
         // Is (x, y) visible?
         public override bool isVisible(int x, int y)
         {

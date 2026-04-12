@@ -280,6 +280,13 @@ namespace Maze
                 System.Threading.Thread.Sleep(20);
             }
 
+            // Dwarf: 1階にのみ1体配置
+            if (floor == 1)
+            {
+                entitylist.Add(new Dwarf(maze));
+                System.Threading.Thread.Sleep(20);
+            }
+
             // Armor
             for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("["), 1)); i++)
             {

@@ -151,6 +151,8 @@ namespace Maze
                         //
                         // Companion は Hobbit を攻撃しない（通れないが攻撃もしない）
                         if (this.isCompanion && e is Hobbit) return false;
+                        // @ と h は Dwarf を攻撃しない（通れないが攻撃もしない）
+                        if ((this.graph == '@' || this.graph == 'h') && e is Dwarf) return false;
 
                         e.beat(this);                   // 攻撃していることを相手に伝える
                         //

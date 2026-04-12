@@ -18,7 +18,7 @@ roguelike/
     ├── Grid.cs             # グリッド管理
     ├── Constant.cs         # 定数 (NGRID=20, VISION_DISTANCE=4)
     ├── Companion.cs        # AI制御のコンパニオン（2体）
-    ├── [敵].cs             # Acid, Bat, Dragon, Hobbit, Ice, Kobold, Orc
+    ├── [敵].cs             # Acid, Bat, Dragon, Dwarf, Hobbit, Ice, Kobold, Orc
     ├── [アイテム].cs       # Gold, Weapon, Armor, Potion, Scroll, Stair, StairUp, Item
     └── StairUp.cs          # 上り階段エンティティ（graph='<'）
 ```
@@ -92,6 +92,18 @@ roguelike/
 - **名前付き武器（`engraveName` あり）**: 装備・dropせずクエストアイテムとして保持
 - 有害判定: Poison/LoseStrength/Amnesia Potion、Scroll of Sleep
 
+### Dwarf
+- 文字: `d`、HP=5、strength=3、toughness=1
+- **2ターンに1回**行動（迅速性が低い）
+- **壁優先移動**: 隣接する壁がある方向からランダムに選択。なければランダム移動
+- **壁掘り**: 同じ壁に4回以上押し当てると、4回目以降は毎ターン20%の確率で壁を崩す
+  - 壁が崩れた場合、さらに20%の確率で `$`（金貨3〜7枚）が出現する
+  - 壁が崩れても視野外なら画面には反映されない（`breakWall()` は `isVisible` を変更しない）
+- **パーティと不可侵**: `@`（Hero・Companion）と `h`（Hobbit）は Dwarf を攻撃しない。Dwarf も `@` と `h` を攻撃しない
+- **近くで掘ると音**: パーティメンバーとのユークリッド距離が5以内で壁に押し当てると「がんがんがん」と出力
+- **配置**: 1階にのみ1体スポーン（`initEnemyAndThings()` でフロア1判定）
+- Companion の AI から完全に除外: 魔法攻撃・射線確保・近接攻撃・逃走判定（`getNearestEnemy()`）すべて対象外
+
 ### Hobbit
 - 全Hobbitに名前あり（Frodo, Samwise, Merry, Pippin, Lobelia, Fatty 等）
 - 挨拶時に名前を名乗る
@@ -109,6 +121,7 @@ roguelike/
 | 記号 | 種類 |
 |------|------|
 | `@`  | Hero / Companion |
+| `d`  | Dwarf |
 | `$`  | Gold |
 | `)`  | Weapon |
 | `[`  | Armor |
@@ -136,3 +149,6 @@ roguelike/
 - 視界は `Logic.addVision()` にまとめられており、`newvision()` から Hero と各 Companion 分を呼ぶ
 - 描画時に同一マスに複数エンティティが重なった場合、`Form1.entityPriority()` で優先度を判定し最上位のものだけ表示する（Hero > Companion > 生きている敵 > 死体 > アイテム）
 - 射線確保移動（Companion AI）で `manualmove()` が失敗した場合（Hobbit等に阻まれた場合）は `return` せず次の行動に進む。移動成功判定は座標変化で確認する
+- `@` と `h` が Dwarf を攻撃しないチェックは `Entity.tryMove()` 内（`e is Dwarf`）で行う。Companion の AI では魔法・近接・逃走の各ループに `if (e is Dwarf) continue;` を追加している
+- `MazeAlgo.breakWall()` / `MazeDist.breakWall()` は壁フラグ（`isWall`）のみ変更し、`isVisible` は変更しない。視界への反映は通常の `newvision()` に委ねる
+- Dwarf の壁掘りカウント（`digCounts`）は壁座標をキーとする `Dictionary<string, int>`。シリアライズ可能
