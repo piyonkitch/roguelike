@@ -92,7 +92,12 @@ namespace Maze
                     if (logic.maze.isVisible(x, y)) // 見えるところだけ描画
                     {
 
-                        if (logic.maze.isWall(x, y))
+                        if (logic.maze.isPit(x, y))
+                        {
+                            // 穴タイル：暗い灰色で塗りつぶし
+                            g.FillRectangle(Brushes.DarkSlateGray, Dots * x, Dots * y, Dots, Dots);
+                        }
+                        else if (logic.maze.isWall(x, y))
                         {
                             g.FillRectangle(Brushes.Black, Dots * x, Dots * y, Dots, Dots);
                         }
@@ -157,6 +162,11 @@ namespace Maze
             {
                 Companion c = logic.companions[i] as Companion;
                 if (c == null) continue;
+                if (c.isInactive)
+                {
+                    labelStatus.Text += "COM" + (i + 1) + " (別フロア)\n";
+                    continue;
+                }
                 labelStatus.Text += "COM" + (i + 1) + " HP= " + c.hit + "/" + c.hitmax
                                   + " MP= " + c.mp + "/" + c.mpmax + "\n";
             }

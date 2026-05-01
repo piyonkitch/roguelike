@@ -44,6 +44,14 @@ namespace Maze
         public GridDist[,] grid = new GridDist[Constant.NGRID, Constant.NGRID]; // 迷路のグリッド
         private List<GridDist> candidates;
 
+        // 穴タイル（シリアライズ対応）
+        private HashSet<string> pits = new HashSet<string>();
+        // 5x5クリア時にLogicへ通知するキュー（非シリアライズ）
+        [NonSerialized]
+        private List<int[]> pendingPits;
+        // 重複トリガー防止（シリアライズ対応）
+        private HashSet<string> triggeredPits = new HashSet<string>();
+
         // initialize a maze (dungeon) using random number generator.
         public override void initmaze()
         {
@@ -163,10 +171,50 @@ namespace Maze
             return grid[x, y].isWall;
         }
 
-        // Break wall at (x, y).
+        // Break wall at (x, y). 5x5クリア時にpendingPitsへ通知を積む。
         public override void breakWall(int x, int y)
         {
             grid[x, y].isWall = false;
+            check5x5ForPit(x, y);
+        }
+
+        // (wx,wy)を含む全5x5ブロックを検査し、全マス非壁ならpendingPitsに追加
+        private void check5x5ForPit(int wx, int wy)
+        {
+            if (pendingPits  == null) pendingPits  = new List<int[]>();
+            if (triggeredPits == null) triggeredPits = new HashSet<string>();
+            int N = Constant.NGRID;
+            for (int bx = Math.Max(0, wx - 4); bx <= Math.Min(wx, N - 5); bx++)
+            {
+                for (int by = Math.Max(0, wy - 4); by <= Math.Min(wy, N - 5); by++)
+                {
+                    int cx = bx + 2, cy = by + 2;
+                    string key = cx + "," + cy;
+                    if (triggeredPits.Contains(key)) continue;
+                    bool allClear = true;
+                    for (int dx = 0; dx < 5 && allClear; dx++)
+                        for (int dy = 0; dy < 5 && allClear; dy++)
+                            if (grid[bx + dx, by + dy].isWall) allClear = false;
+                    if (allClear)
+                    {
+                        triggeredPits.Add(key);
+                        pendingPits.Add(new int[] { cx, cy });
+                    }
+                }
+            }
+        }
+
+        // 穴タイル操作
+        public override bool isPit(int x, int y)   => pits.Contains(x + "," + y);
+        public override void addPit(int x, int y)  => pits.Add(x + "," + y);
+
+        // 溜まった穴通知を取り出してキューを空にする
+        public override List<int[]> takePendingPits()
+        {
+            if (pendingPits == null) return new List<int[]>();
+            var result = pendingPits;
+            pendingPits = new List<int[]>();
+            return result;
         }
 
         // Is (x, y) visible?

@@ -1,4 +1,4 @@
-﻿/*
+/*
 Copyright(c) 2015, piyonkitch<kazuo.horikawa.ko@gmail.com>
 All rights reserved.
 
@@ -46,13 +46,13 @@ namespace Maze
         public DateTime expiry;
     }
 
-    // 上の階に戻るために保存するフロア状態
+    // フロア状態（上の階に戻る / 穴で落ちた後に戻る ために保存）
     [Serializable]
     class FloorState
     {
         public MazeAlgo maze;
         public List<Entity> entitylist;
-        public int stairX, stairY;  // Hero が > を使った座標（戻り先）
+        public int stairX, stairY;  // Hero がこのフロアを離れた座標（戻り先）
     }
 
     class Logic
@@ -64,8 +64,9 @@ namespace Maze
         public int floor { get; set;  }
         public List<Entity> entitylist { get; set; }
 
-        // 上の階へ戻るためのフロア履歴（saveには含まれない）
-        private Stack<FloorState> floorHistory = new Stack<FloorState>();
+        // 全フロア状態をフロア番号をキーに保持（Stack→Dictionaryに変更）
+        // これにより「一度戻った階」への再移動でも状態が保持される
+        private Dictionary<int, FloorState> savedFloors = new Dictionary<int, FloorState>();
 
         // Hero から到達可能なマス数を BFS で数える
         private int countReachableCells(int startX, int startY)
@@ -119,7 +120,7 @@ namespace Maze
         public void init()
         {
             floor = 1;
-            floorHistory = new Stack<FloorState>();
+            savedFloors = new Dictionary<int, FloorState>();
 
             do
             {
@@ -146,10 +147,43 @@ namespace Maze
             newvision();
         }
 
-        public void initNextLevel()
-        {
-            floor++;
+        // ─────────────────────────────────────────
+        // フロア遷移ヘルパー
+        // ─────────────────────────────────────────
 
+        // 現フロアの状態を savedFloors[floor] に保存
+        private void saveCurrentFloor(int heroLeaveX, int heroLeaveY)
+        {
+            savedFloors[floor] = new FloorState
+            {
+                maze       = this.maze,
+                entitylist = this.entitylist,
+                stairX     = heroLeaveX,
+                stairY     = heroLeaveY
+            };
+        }
+
+        // targetFloor を savedFloors から復元し、Hero を (heroX, heroY) に配置
+        private void restoreFloor(int targetFloor, int heroX, int heroY)
+        {
+            FloorState saved = savedFloors[targetFloor];
+            floor      = targetFloor;
+            maze       = saved.maze;
+            entitylist = saved.entitylist;
+            hero.xpos  = heroX;
+            hero.ypos  = heroY;
+            reactivateCompanionsOnCurrentFloor();
+            foreach (Entity c in companions)
+            {
+                if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
+                c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+            }
+            newvision();
+        }
+
+        // 新規フロアを生成して切り替える（floor はすでにインクリメント済みであること）
+        private void generateNewFloor(int heroX = -1, int heroY = -1)
+        {
             do
             {
                 maze = new MazeDist();
@@ -157,14 +191,25 @@ namespace Maze
                 entitylist = new List<Entity>();
 
                 entitylist.Add(hero);
-                hero.changePos(maze);
+                // 指定座標が有効なら使用、そうでなければランダム配置
+                if (heroX >= 0 && heroY >= 0 && !maze.isWall(heroX, heroY))
+                {
+                    hero.xpos = heroX;
+                    hero.ypos = heroY;
+                }
+                else
+                {
+                    hero.changePos(maze);
+                }
 
-                // 上り階段を Hero の入口位置に配置
-                entitylist.Add(new StairUp(maze, hero.xpos, hero.ypos));
+                // 上り階段を Hero の入口位置に配置（1階には上り階段なし）
+                if (floor > 1)
+                    entitylist.Add(new StairUp(maze, hero.xpos, hero.ypos));
                 System.Threading.Thread.Sleep(20);
 
                 foreach (Entity c in companions)
                 {
+                    if (c is Companion comp && comp.isInactive) continue; // 別フロアは追加しない
                     entitylist.Add(c);
                     c.changePosNear(maze, hero.xpos, hero.ypos, 3);
                 }
@@ -172,8 +217,150 @@ namespace Maze
                 initEnemyAndThings();
             } while (!isMazeAcceptable());
 
+            reactivateCompanionsOnCurrentFloor();
             newvision();
         }
+
+        // 現フロアの entitylist に含まれる非アクティブ Companion を復活させる。
+        // entitylist 未登録（未訪問フロアへ落下）の Companion も Hero 近くに追加して復活させる。
+        private void reactivateCompanionsOnCurrentFloor()
+        {
+            foreach (Entity c in entitylist)
+            {
+                if (c is Companion comp && comp.isInactive)
+                    comp.isInactive = false;
+            }
+
+            // entitylist に入っていない非アクティブ Companion を拾い直す
+            foreach (Entity c in companions)
+            {
+                if (!(c is Companion fallen) || !fallen.isInactive) continue;
+                if (entitylist.Contains(fallen)) continue;
+                fallen.isInactive = false;
+                fallen.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                entitylist.Add(fallen);
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // 穴落下処理
+        // ─────────────────────────────────────────
+
+        // Dwarfが5x5壁クリアした通知を受け取り、一つ上の階（floor-1）に穴を追加する
+        private void processPendingPits()
+        {
+            List<int[]> pending = maze.takePendingPits();
+            if (pending.Count == 0) return;
+
+            int upperFloor = floor - 1;
+            if (!savedFloors.ContainsKey(upperFloor)) return;
+
+            foreach (int[] pit in pending)
+            {
+                int cx = pit[0], cy = pit[1];
+                savedFloors[upperFloor].maze.addPit(cx, cy);
+                Console.WriteLine("2階の崩落が1階に穴を開けた！ ({0},{1})", cx, cy);
+            }
+        }
+
+        // Hero が穴マスにいる場合、1階下へ落下させる
+        public void heroFall()
+        {
+            int pitX = hero.xpos, pitY = hero.ypos;
+
+            // 現フロアを保存（> 階段の座標を戻り先とする）
+            int returnX = pitX, returnY = pitY;
+            foreach (Entity e in entitylist)
+            {
+                if (e.graph == '>') { returnX = e.xpos; returnY = e.ypos; break; }
+            }
+            saveCurrentFloor(returnX, returnY);
+
+            floor++;
+            Console.WriteLine("ズドーン！ Hero は穴に落ちた！ ({0},{1}) → 地下{2}階", pitX, pitY, floor);
+
+            if (savedFloors.ContainsKey(floor))
+            {
+                // 既訪問フロアを復元
+                FloorState saved = savedFloors[floor];
+                maze       = saved.maze;
+                entitylist = saved.entitylist;
+                hero.xpos  = pitX;
+                hero.ypos  = pitY;
+                reactivateCompanionsOnCurrentFloor();
+                foreach (Entity c in companions)
+                {
+                    if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
+                    c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                }
+                newvision();
+            }
+            else
+            {
+                // 未訪問フロア：新規生成（穴座標に着地）
+                generateNewFloor(pitX, pitY);
+            }
+        }
+
+        // Companion が穴マスに落ちた場合の処理
+        private void companionFall(Companion comp)
+        {
+            int pitX = comp.xpos, pitY = comp.ypos;
+            Console.WriteLine("{0} は穴に落ちた！ 地下{1}階へ…", comp.name, floor + 1);
+
+            // 現フロアの entitylist から除外
+            entitylist.Remove(comp);
+            comp.isInactive = true;
+            comp.xpos = pitX;
+            comp.ypos = pitY;
+
+            // 1階下の entitylist にいる（Companionは全フロアのentitylistに共通参照で存在）
+            // 既訪問フロアなら同一オブジェクトが savedFloors[floor+1].entitylist にも入っている
+            // ただし初回生成時に追加されていない場合（Hero が穴落下で先行したとき）のみ追加
+            int nextFloor = floor + 1;
+            if (savedFloors.ContainsKey(nextFloor))
+            {
+                var nextList = savedFloors[nextFloor].entitylist;
+                if (!nextList.Contains(comp))
+                    nextList.Add(comp);
+            }
+        }
+
+        // 敵など一般エンティティが穴に落ちた場合の処理
+        private void entityFall(Entity e)
+        {
+            int pitX = e.xpos, pitY = e.ypos;
+            entitylist.Remove(e);
+            e.xpos = pitX;
+            e.ypos = pitY;
+
+            int nextFloor = floor + 1;
+            if (savedFloors.ContainsKey(nextFloor))
+            {
+                var nextList = savedFloors[nextFloor].entitylist;
+                if (!nextList.Contains(e))
+                    nextList.Add(e);
+            }
+        }
+
+        // tick() 内でHero以外の穴落下を一括チェック
+        private void checkPitFalls()
+        {
+            foreach (Entity e in entitylist.ToList())
+            {
+                if (e == hero) continue;
+                if (!maze.isPit(e.xpos, e.ypos)) continue;
+
+                if (e is Companion comp)
+                    companionFall(comp);
+                else
+                    entityFall(e);
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // 既存メソッド群
+        // ─────────────────────────────────────────
 
         // Hobbit の名前プール（Bilbo はクエストギバーとして別途生成）
         private static readonly string[] HOBBIT_NAMES = { "Frodo", "Samwise", "Merry", "Pippin", "Lobelia", "Fatty" };
@@ -280,8 +467,8 @@ namespace Maze
                 System.Threading.Thread.Sleep(20);
             }
 
-            // Dwarf: 1階にのみ1体配置
-            if (floor == 1)
+            // Dwarf: 2階にのみ1体配置
+            if (floor == 2)
             {
                 entitylist.Add(new Dwarf(maze));
                 System.Threading.Thread.Sleep(20);
@@ -369,10 +556,11 @@ namespace Maze
             // Hero の視界
             addVision(hero.xpos, hero.ypos);
 
-            // Companion の視界
+            // Companion の視界（非アクティブは別フロアなのでスキップ）
             foreach (Entity c in companions)
             {
                 if (c.hit <= 0) continue;
+                if (c is Companion comp && comp.isInactive) continue;
                 addVision(c.xpos, c.ypos);
             }
         }
@@ -411,6 +599,7 @@ namespace Maze
             foreach (Entity c in companions)
             {
                 if (c.hit <= 0) continue;
+                if (c is Companion comp && comp.isInactive) continue; // 別フロアはスキップ
                 if (isSeeThru(c.xpos, c.ypos, e.xpos, e.ypos) &&
                     Math.Sqrt(Math.Pow(e.xpos - c.xpos, 2) + Math.Pow(e.ypos - c.ypos, 2)) <= Constant.VISION_DISTANCE)
                     return true;
@@ -421,7 +610,6 @@ namespace Maze
 
         public void tick()
         {
-
             do
             {                    // hero.frozen が > 0 なら繰り返す
                 foreach (Entity e in entitylist.ToList())  // ToList() でスナップショットを作りループ中の変更を許容
@@ -458,6 +646,12 @@ namespace Maze
                     entitylist.Add(e);
                 }
 
+                // Hero以外の穴落下チェック
+                checkPitFalls();
+
+                // 2階Dwarfが5x5壁クリアした場合、1階に穴を追加する
+                processPendingPits();
+
                 // 視界を更新
                 newvision();
 
@@ -480,52 +674,81 @@ namespace Maze
         //
         // ユーザ操作から呼ばれる処理
         //
+
+        // 移動後に Hero が穴マスにいれば落下させ true を返す
+        private bool checkAndHandleHeroFall()
+        {
+            if (!maze.isPit(hero.xpos, hero.ypos)) return false;
+            heroFall();
+            return true;
+        }
+
         public void ctrlUp()
         {
             hero.manualmove("↑", maze, entitylist);
+            if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlLeft()
         {
             hero.manualmove("←", maze, entitylist);
+            if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlRight()
         {
             hero.manualmove("→", maze, entitylist);
+            if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlDown()
         {
             hero.manualmove("↓", maze, entitylist);
+            if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlStairDown()
         {
-            bool stair = false;
+            // Hero が > の上にいるか確認
+            bool onStair = false;
             foreach (Entity e in entitylist)
             {
                 if (e.xpos == hero.xpos && e.ypos == hero.ypos && e.graph == '>')
-                {
-                    stair = true;
-                    break;
-                }
+                { onStair = true; break; }
             }
-            if (stair)
+            if (!onStair) return;
+
+            // 現フロアを保存（> 座標を戻り先に）
+            saveCurrentFloor(hero.xpos, hero.ypos);
+            floor++;
+
+            if (savedFloors.ContainsKey(floor))
             {
-                // 現在のフロア状態を保存（上に戻れるように）
-                floorHistory.Push(new FloorState
+                // 既訪問フロアを復元（< 階段の位置に着地）
+                FloorState saved = savedFloors[floor];
+                maze       = saved.maze;
+                entitylist = saved.entitylist;
+                int hx = hero.xpos, hy = hero.ypos; // fallback
+                foreach (Entity e in entitylist)
+                    if (e.graph == '<') { hx = e.xpos; hy = e.ypos; break; }
+                hero.xpos = hx;
+                hero.ypos = hy;
+                reactivateCompanionsOnCurrentFloor();
+                foreach (Entity c in companions)
                 {
-                    maze      = this.maze,
-                    entitylist = this.entitylist,
-                    stairX    = hero.xpos,
-                    stairY    = hero.ypos
-                });
-                initNextLevel();
+                    if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
+                    c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                }
+                newvision();
+            }
+            else
+            {
+                // 未訪問フロア：新規生成
+                generateNewFloor();
             }
         }
 
@@ -536,28 +759,28 @@ namespace Maze
             foreach (Entity e in entitylist)
             {
                 if (e.xpos == hero.xpos && e.ypos == hero.ypos && e.graph == '<')
-                {
-                    onStairUp = true;
-                    break;
-                }
+                { onStairUp = true; break; }
             }
-            if (!onStairUp || floorHistory.Count == 0) return;
+            if (!onStairUp) return;
+            if (floor <= 1) return;
 
-            FloorState prev = floorHistory.Pop();
+            // 現フロアを保存
+            saveCurrentFloor(hero.xpos, hero.ypos);
             floor--;
-            maze      = prev.maze;
+
+            // 一つ上の階を復元（> 階段の位置に着地）
+            FloorState prev = savedFloors[floor];
+            maze       = prev.maze;
             entitylist = prev.entitylist;
+            hero.xpos  = prev.stairX;
+            hero.ypos  = prev.stairY;
 
-            // Hero を前の階の > の位置に配置
-            hero.xpos = prev.stairX;
-            hero.ypos = prev.stairY;
-
-            // Companion を Hero 近くに再配置
+            reactivateCompanionsOnCurrentFloor();
             foreach (Entity c in companions)
             {
+                if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
                 c.changePosNear(maze, hero.xpos, hero.ypos, 3);
             }
-
             newvision();
         }
 
@@ -573,7 +796,7 @@ namespace Maze
 
         public void ctrlDrop(int index)
         {
-            if (hero.itemlist[index].drop(hero) == false) return; // 数を1個減らす 
+            if (hero.itemlist[index].drop(hero) == false) return; // 数を1個減らす
 
             // Potion などでは、entity は1個にまとまってしまっている。
             // entity をコピーしてから、entitylist に置く必要がある。
@@ -627,7 +850,7 @@ namespace Maze
                     formatter.Serialize(stream, maze);
                     formatter.Serialize(stream, floor);
                     formatter.Serialize(stream, entitylist);
-                    formatter.Serialize(stream, floorHistory);
+                    formatter.Serialize(stream, savedFloors);
                 }
             }
             catch (System.IO.IOException ex)
@@ -653,7 +876,7 @@ namespace Maze
                     floor = (int)formatter.Deserialize(stream);
                     entitylist = (List<Entity>)formatter.Deserialize(stream);
                     hero = entitylist[0];
-                    floorHistory = (Stack<FloorState>)formatter.Deserialize(stream);
+                    savedFloors = (Dictionary<int, FloorState>)formatter.Deserialize(stream);
 
                     // companions リストを entitylist から再構築
                     companions = entitylist.Where(e => e.isCompanion).ToList();
@@ -681,8 +904,11 @@ namespace Maze
                 Console.WriteLine("ファイルの読み込み権限がありません");
                 Console.WriteLine(ex.Message);
             }
-            
-
+            catch (System.Runtime.Serialization.SerializationException ex)
+            {
+                Console.WriteLine("セーブデータの形式が古いため読み込めません（新規ゲームを開始してください）");
+                Console.WriteLine(ex.Message);
+            }
         }
 
     }

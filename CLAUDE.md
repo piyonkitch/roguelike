@@ -42,10 +42,10 @@ roguelike/
 - 下り階段（`>`）で次の階へ。上り階段（`<`）で前の階に戻れる
 - `<` は各フロアの Hero 入口位置に固定配置される（1階には存在しない）
 - `<` で戻ると Hero は元の `>` の位置に、Companion は Hero 近くに再配置される
-- フロア状態（maze・entitylist・`>` 座標）は `FloorState` としてスタックに保存される
+- フロア状態（maze・entitylist・`>` 座標）は `FloorState` として `savedFloors: Dictionary<int, FloorState>` に保存される
 
 ### 迷路品質チェック
-- `init()` / `initNextLevel()` は条件を満たすまで迷路を再生成する（`do...while` ループ）
+- `init()` / `generateNewFloor()` は条件を満たすまで迷路を再生成する（`do...while` ループ）
 - 条件: Hero から BFS で到達可能なマスが **80マス以上**、かつ **到達可能な武器が1個以上**
 - 1階では到達可能な武器として **Sting** が存在することを必須とする
 
@@ -101,8 +101,25 @@ roguelike/
   - 壁が崩れても視野外なら画面には反映されない（`breakWall()` は `isVisible` を変更しない）
 - **パーティと不可侵**: `@`（Hero・Companion）と `h`（Hobbit）は Dwarf を攻撃しない。Dwarf も `@` と `h` を攻撃しない
 - **近くで掘ると音**: パーティメンバーとのユークリッド距離が5以内で壁に押し当てると「がんがんがん」と出力
-- **配置**: 1階にのみ1体スポーン（`initEnemyAndThings()` でフロア1判定）
+- **配置**: 2階にのみ1体スポーン（`initEnemyAndThings()` でフロア2判定）
 - Companion の AI から完全に除外: 魔法攻撃・射線確保・近接攻撃・逃走判定（`getNearestEnemy()`）すべて対象外
+- **5x5壁クリアで1階に穴発生**: Dwarf が2階で壁を崩し続け、任意の5x5エリアが壁ゼロになると、その中心座標に対応する1階の床タイルが穴（`MazeDist.pits`）になる。重複トリガー防止のため `triggeredPits` HashSet で管理。穴は `MazeAlgo.takePendingPits()` → `Logic.processPendingPits()` のパイプラインで `savedFloors[1].maze` に反映される
+
+### 穴タイルと落下
+- 穴は `MazeDist.pits` (HashSet<string>) で管理。`isPit(x,y)` / `addPit(x,y)` で操作
+- 表示: `Form1.show()` で `isPit` を先に判定し DarkSlateGray で塗りつぶす
+- **Hero が穴マスに進む**: `ctrlUp/Down/Left/Right` の `manualmove()` 後に `checkAndHandleHeroFall()` を呼ぶ。穴なら `heroFall()` を実行して tick() をスキップ
+- **Companion が穴マスに進む**: `tick()` 内の `checkPitFalls()` で検出。`companionFall()` を呼び、現フロアの entitylist から除いて `isInactive = true` にする
+- **その他のエンティティ**: 同様に `entityFall()` で現フロア除外・下フロアへ追加
+- `heroFall()`: 現フロア状態を `savedFloors[floor]` に保存 → `floor++` → 既訪問なら復元、未訪問なら `generateNewFloor()` で新規生成。Hero は穴の XY 座標に着地
+- `companionFall()`: entitylist.Remove → isInactive=true → `savedFloors[floor+1].entitylist` に未登録なら追加（同一参照が既にある場合はスキップ）
+- 非アクティブ Companion: `isInactive == true` の間は `Companion.move()` でスキップ。`newvision()`・`isEntitySeeable()` でも除外。ステータス欄に「(別フロア)」と表示
+- **Hero が同じフロアに来ると復活**: `reactivateCompanionsOnCurrentFloor()` がフロア切り替え時に entitylist を走査し `isInactive = false` にする
+
+### フロア状態管理（savedFloors）
+- `floorHistory: Stack<FloorState>` を廃止し `savedFloors: Dictionary<int, FloorState>` に変更
+- 全フロアの状態を番号をキーに保持するため、「一度戻った階」への再移動でも状態が保持される
+- セーブ/ロード: `formatter.Serialize(stream, savedFloors)` で永続化。旧フォーマットのセーブは SerializationException をキャッチして案内メッセージを出す
 
 ### Hobbit
 - 全Hobbitに名前あり（Frodo, Samwise, Merry, Pippin, Lobelia, Fatty 等）
@@ -130,10 +147,11 @@ roguelike/
 | `%`  | 食べ物・死体 |
 | `>`  | 下り階段 |
 | `<`  | 上り階段 |
+| (穴) | DarkSlateGray塗りつぶし（文字なし）|
 
 ### セーブ・ロード
 - `BinaryFormatter` で `roguelike.bin` に保存
-- `maze`・`floor`・`entitylist`・`floorHistory` をシリアライズ
+- `maze`・`floor`・`entitylist`・`savedFloors` をシリアライズ
 - ロード後は `entitylist` から `isCompanion` フラグで `companions` リストを再構築し、`ensureTransients()` で非シリアライズフィールドを再初期化、`newvision()` で視界を更新する
 
 ## 既知の設計上の注意点
@@ -152,3 +170,4 @@ roguelike/
 - `@` と `h` が Dwarf を攻撃しないチェックは `Entity.tryMove()` 内（`e is Dwarf`）で行う。Companion の AI では魔法・近接・逃走の各ループに `if (e is Dwarf) continue;` を追加している
 - `MazeAlgo.breakWall()` / `MazeDist.breakWall()` は壁フラグ（`isWall`）のみ変更し、`isVisible` は変更しない。視界への反映は通常の `newvision()` に委ねる
 - Dwarf の壁掘りカウント（`digCounts`）は壁座標をキーとする `Dictionary<string, int>`。シリアライズ可能
+- **`frozen` のデクリメント責任**: Hero の `frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が担う。それ以外のエンティティ（Companion・敵）は各自の `move()` 冒頭で `if (frozen > 0) { frozen--; return; }` を実装しなければならない。`manualmove()` は `frozen > 0` を動作停止の判断に使うだけでデクリメントしない設計のため、**`move()` を新規実装するクラスがデクリメントを忘れると永久凍結バグになる**。根本解決策は `Entity.move()` をテンプレートメソッド化（`doMove()` を導入）して `frozen` 処理を基底クラスに一元化することだが、現状は未対応。新規エンティティ追加時は必ずこのパターンを含めること

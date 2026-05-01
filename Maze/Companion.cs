@@ -42,6 +42,9 @@ namespace Maze
         public int mp { get; set; }
         public int mpmax { get; set; }
 
+        // 別フロアに落下中：true の間はAI・表示・戦闘すべて停止
+        public bool isInactive { get; set; } = false;
+
         // 魔法エフェクト（非シリアライズ：描画用一時データ）
         [NonSerialized]
         public List<MagicEffect> pendingMagicEffects;
@@ -101,6 +104,8 @@ namespace Maze
         public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
             if (!isLive()) return;
+            if (isInactive) return;   // 別フロアに落下中は行動しない
+            if (frozen > 0) { frozen--; return; }  // 眠り中は行動しない
             ensureTransients();
 
             // MP自然回復（20%）

@@ -47,6 +47,10 @@ namespace Maze
         // 壁
         abstract public bool isWall(int x, int y);
         abstract public void breakWall(int x, int y);
+        // 穴（床抜け）
+        abstract public bool isPit(int x, int y);
+        abstract public void addPit(int x, int y);
+        abstract public List<int[]> takePendingPits();
         // 見えるかどうか
         abstract public bool isVisible(int x, int y);
         abstract public bool Visible(int x, int y);
