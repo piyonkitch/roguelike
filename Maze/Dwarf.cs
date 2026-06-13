@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015, piyonkitch<kazuo.horikawa.ko@gmail.com>
+Copyright(c) 2015, 2026, piyonkitch<kazuo.horikawa.ko@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
