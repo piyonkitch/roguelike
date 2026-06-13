@@ -51,10 +51,8 @@ namespace Maze
             toughness = 1;
         }
 
-        public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)        // 多様性
+        protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
-            if (!isLive()) return;
-
             string dir;
             if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) <= 3)
             {

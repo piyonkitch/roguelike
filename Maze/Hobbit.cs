@@ -77,10 +77,8 @@ namespace Maze
             Console.WriteLine("{0}：「{1}を持ってきてくれたのか！ありがとう！約束の金貨{2}枚だ」", name, QUEST_ITEM_NAME, QUEST_GOLD);
         }
 
-        public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)        // 多様性
+        protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
-            if (!isLive()) return;
-
             // クエストギバーのSting受け取りチェック（Heroの位置によらず毎ターン実行）
             if (isQuestGiver && !questCompleted)
             {

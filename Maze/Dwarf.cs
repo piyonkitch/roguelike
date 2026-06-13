@@ -80,10 +80,8 @@ namespace Maze
             return false;
         }
 
-        public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
+        protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
-            if (!isLive()) return;
-
             // 2ターンに1回だけ行動
             skipTurn = !skipTurn;
             if (skipTurn) return;

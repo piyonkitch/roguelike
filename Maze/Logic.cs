@@ -55,6 +55,18 @@ namespace Maze
         public int stairX, stairY;  // Hero がこのフロアを離れた座標（戻り先）
     }
 
+    // 宝石クエスト進捗：大きな原石４種を集める
+    [Serializable]
+    class GemQuest
+    {
+        public bool roseQuartzCollected;
+        public bool sapphireCollected;
+        public bool amberCollected;
+        public bool aquamarineCollected;
+        public bool IsCompleted =>
+            roseQuartzCollected && sapphireCollected && amberCollected && aquamarineCollected;
+    }
+
     class Logic
     {
         public List<MagicEffect> magicEffects = new List<MagicEffect>();
@@ -67,6 +79,9 @@ namespace Maze
         // 全フロア状態をフロア番号をキーに保持（Stack→Dictionaryに変更）
         // これにより「一度戻った階」への再移動でも状態が保持される
         private Dictionary<int, FloorState> savedFloors = new Dictionary<int, FloorState>();
+
+        public GemQuest gemQuest = new GemQuest();
+        private int turnCounter;
 
         // Hero から到達可能なマス数を BFS で数える
         private int countReachableCells(int startX, int startY)
@@ -95,10 +110,18 @@ namespace Maze
             return count;
         }
 
-        // 迷路の品質チェック: 広さ十分 かつ 必要な武器が到達可能
+        // 迷路の品質チェック: 広さ十分 かつ 必要な武器・大きな原石が到達可能
         private bool isMazeAcceptable()
         {
             if (countReachableCells(hero.xpos, hero.ypos) < 80) return false;
+            // 大きな原石は Hero から到達可能でなければならない
+            foreach (Entity e in entitylist)
+            {
+                if (e is Gem g && g.isLarge)
+                {
+                    if (maze.walk(hero.xpos, hero.ypos, e.xpos, e.ypos) == "") return false;
+                }
+            }
             foreach (Entity e in entitylist)
             {
                 if (e.graph != ')') continue;
@@ -121,6 +144,8 @@ namespace Maze
         {
             floor = 1;
             savedFloors = new Dictionary<int, FloorState>();
+            gemQuest = new GemQuest();
+            turnCounter = 0;
 
             do
             {
@@ -489,6 +514,39 @@ namespace Maze
                     System.Threading.Thread.Sleep(20);
                 } while (maze.walk(hero.xpos, hero.ypos, entitylist.Last().xpos, entitylist.Last().ypos) == "");
             }
+
+            // 宝石: 各フロアに大きな原石1個 + 小さな星石2〜3個
+            switch (floor)
+            {
+                case 1: entitylist.Add(Gem.CreateLargeRoseQuartz(maze));   System.Threading.Thread.Sleep(20); break;
+                case 2: entitylist.Add(Gem.CreateLargeSapphire(maze));     System.Threading.Thread.Sleep(20); break;
+                case 3: entitylist.Add(Gem.CreateLargeAmber(maze));        System.Threading.Thread.Sleep(20); break;
+                case 4: entitylist.Add(Gem.CreateLargeAquamarine(maze));   System.Threading.Thread.Sleep(20); break;
+            }
+            int smallGemCount = new Random().Next(2, 4); // 2 or 3
+            System.Threading.Thread.Sleep(20);
+            for (int i = 0; i < smallGemCount; i++)
+            {
+                entitylist.Add(createRandomSmallGem(maze));
+                System.Threading.Thread.Sleep(20);
+            }
+        }
+
+        private Gem createRandomSmallGem(MazeAlgo maze)
+        {
+            Random rnd = new Random();
+            System.Threading.Thread.Sleep(20);
+            switch (rnd.Next(8))
+            {
+                case 0: return Gem.CreateSmallRoseQuartz(maze);
+                case 1: return Gem.CreateRhodonite(maze);
+                case 2: return Gem.CreateSmallSapphire(maze);
+                case 3: return Gem.CreateIolite(maze);
+                case 4: return Gem.CreateSmallAmber(maze);
+                case 5: return Gem.CreateCitrine(maze);
+                case 6: return Gem.CreateSmallAquamarine(maze);
+                default: return Gem.CreateBlueTopaz(maze);
+            }
         }
 
         public bool isSeeThru(int fromx, int fromy, int tox, int toy) {
@@ -652,6 +710,11 @@ namespace Maze
                 // 2階Dwarfが5x5壁クリアした場合、1階に穴を追加する
                 processPendingPits();
 
+                // ローズクォーツ回復・クエスト更新
+                turnCounter++;
+                applyGemHealing();
+                updateGemQuest();
+
                 // 視界を更新
                 newvision();
 
@@ -669,6 +732,66 @@ namespace Maze
                 // 期限切れエフェクトを削除
                 magicEffects.RemoveAll(ef => ef.expiry <= DateTime.Now);
             } while (hero.frozen-- > 0);
+        }
+
+        // ローズクォーツのパッシブ回復をパーティ全員に適用する
+        private void applyGemHealing()
+        {
+            var party = new System.Collections.Generic.List<Entity> { hero };
+            party.AddRange(companions);
+            foreach (Entity pm in party)
+            {
+                if (pm.hit <= 0) continue;
+                if (pm is Companion comp && comp.isInactive) continue;
+                foreach (Item item in pm.itemlist.ToList())
+                {
+                    if (!(item.entity is Gem g) || g.ability != Gem.GemAbility.Heal) continue;
+                    int interval = g.power >= 2 ? 3 : 5;   // 大: 3ターンごと, 小: 5ターンごと
+                    if (turnCounter % interval == 0 && pm.hit < pm.hitmax)
+                    {
+                        pm.hit++;
+                        Console.WriteLine("{0} の体が温まった（{1}の加護）", pm.name, g.name);
+                        g.revealByEffect();
+                    }
+                }
+            }
+        }
+
+        // パーティが保持する大きな原石の種類を確認してクエスト進捗を更新する
+        private void updateGemQuest()
+        {
+            if (gemQuest.IsCompleted) return;
+
+            bool rq = false, sa = false, am = false, aq = false;
+            var party = new System.Collections.Generic.List<Entity> { hero };
+            party.AddRange(companions);
+            foreach (Entity pm in party)
+            {
+                if (pm.hit <= 0) continue;
+                foreach (Item item in pm.itemlist)
+                {
+                    if (!(item.entity is Gem g) || !g.isLarge) continue;
+                    switch (g.ability)
+                    {
+                        case Gem.GemAbility.Heal:      rq = true; break;
+                        case Gem.GemAbility.Barrier:   sa = true; break;
+                        case Gem.GemAbility.TimeStop:  am = true; break;
+                        case Gem.GemAbility.CritBoost: aq = true; break;
+                    }
+                }
+            }
+
+            bool wasCompleted = gemQuest.IsCompleted;
+            gemQuest.roseQuartzCollected  = rq;
+            gemQuest.sapphireCollected    = sa;
+            gemQuest.amberCollected       = am;
+            gemQuest.aquamarineCollected  = aq;
+
+            if (!wasCompleted && gemQuest.IsCompleted)
+            {
+                Console.WriteLine("★★★ 伝説の宝石４種を全て集めた！ 大クエスト完了！ ★★★");
+                hero.gold += 200;
+            }
         }
 
         //
@@ -851,6 +974,8 @@ namespace Maze
                     formatter.Serialize(stream, floor);
                     formatter.Serialize(stream, entitylist);
                     formatter.Serialize(stream, savedFloors);
+                    formatter.Serialize(stream, gemQuest);
+                    formatter.Serialize(stream, turnCounter);
                 }
             }
             catch (System.IO.IOException ex)
@@ -877,6 +1002,18 @@ namespace Maze
                     entitylist = (List<Entity>)formatter.Deserialize(stream);
                     hero = entitylist[0];
                     savedFloors = (Dictionary<int, FloorState>)formatter.Deserialize(stream);
+
+                    // 宝石クエスト・ターンカウンター（旧セーブには存在しない場合あり）
+                    try
+                    {
+                        gemQuest     = (GemQuest)formatter.Deserialize(stream);
+                        turnCounter  = (int)formatter.Deserialize(stream);
+                    }
+                    catch
+                    {
+                        gemQuest    = new GemQuest();
+                        turnCounter = 0;
+                    }
 
                     // companions リストを entitylist から再構築
                     companions = entitylist.Where(e => e.isCompanion).ToList();

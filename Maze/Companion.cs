@@ -101,11 +101,9 @@ namespace Maze
             return null;
         }
 
-        public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
+        protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
-            if (!isLive()) return;
             if (isInactive) return;   // 別フロアに落下中は行動しない
-            if (frozen > 0) { frozen--; return; }  // 眠り中は行動しない
             ensureTransients();
 
             // MP自然回復（20%）
@@ -282,10 +280,11 @@ namespace Maze
             int bestDist = int.MaxValue;
             foreach (Entity e in entitylist)
             {
-                // 床に落ちているアイテムのみ対象
+                // 床に落ちているアイテムのみ対象（宝石'*'も含む）
                 if (e.graph != '$' && e.graph != '%' &&
                     e.graph != '!' && e.graph != '?' &&
-                    e.graph != ')' && e.graph != '[') continue;
+                    e.graph != ')' && e.graph != '[' &&
+                    e.graph != '*') continue;
                 // % は HP が満タンなら不要
                 if (e.graph == '%' && hit >= hitmax) continue;
                 int distToItem = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);

@@ -73,6 +73,7 @@ namespace Maze
         {
             if (e.graph == '@' && !e.isCompanion) return 4; // Hero
             if (e.graph == '@' && e.isCompanion)  return 3; // Companion
+            if (e is Gem)                          return 0; // 宝石はアイテム扱い（hit=1だが生物ではない）
             if (e.hit > 0)                         return 2; // 生きている敵
             if (e.graph == '%')                    return 1; // 死体
             return 0;                                        // アイテム
@@ -125,8 +126,16 @@ namespace Maze
             }
             foreach (Entity e in cellTop.Values)
             {
-                Brush brush = e.isCompanion ? Brushes.Blue : Brushes.Red;
-                g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                if (e is Gem gem)
+                {
+                    using (Brush brush = new SolidBrush(gem.DisplayColor))
+                        g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                }
+                else
+                {
+                    Brush brush = e.isCompanion ? Brushes.Blue : Brushes.Red;
+                    g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                }
             }
 
             // 魔法エフェクトを描画する（シアン色）
@@ -170,6 +179,15 @@ namespace Maze
                 labelStatus.Text += "COM" + (i + 1) + " HP= " + c.hit + "/" + c.hitmax
                                   + " MP= " + c.mp + "/" + c.mpmax + "\n";
             }
+
+            // 宝石クエスト状況（1行でコンパクト表示）
+            GemQuest q = logic.gemQuest;
+            labelStatus.Text += "宝石(春夏秋冬)："
+                              + (q.roseQuartzCollected  ? "★" : "☆")
+                              + (q.sapphireCollected    ? "★" : "☆")
+                              + (q.amberCollected       ? "★" : "☆")
+                              + (q.aquamarineCollected  ? "★" : "☆")
+                              + (q.IsCompleted ? " 完了！" : "") + "\n";
 
             // REVISIT 2015/09/06 Logic logic 中でゲームオーバー判定したほうが良いのだけど…
             if (logic.hero.hit <= 0)

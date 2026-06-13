@@ -48,5 +48,8 @@ namespace Maze
             name = "Hero";
             isPartyMember = true;
         }
+
+        // frozen は Logic.tick() の while (hero.frozen-- > 0) で管理するためテンプレートをバイパスする
+        public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target) { }
     }
 }

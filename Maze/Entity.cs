@@ -122,7 +122,8 @@ namespace Maze
                         e.graph == ')' ||           // 武器
                         e.graph == '[' ||           // 鎧
                         e.graph == '!' ||           // ポーション
-                        e.graph == '?')             // 巻物
+                        e.graph == '?' ||           // 巻物
+                        e.graph == '*')             // 宝石
                     {
                         thigsOnGrid.Add(e);
                     }
@@ -158,12 +159,39 @@ namespace Maze
                         //
                         // ヒットポイントの変化、経験値の変化は、ここから下に書く
                         //
-                        // 自分の強さ - 相手の耐久性分、相手のヒットを減らす
-                        int diff = this.getStrength() - e.getToughness();
+                        // 自分の強さ - 相手の耐久性 - サファイア結界
+                        int naturalDiff = this.getStrength() - e.getToughness();
+                        int barrier     = e.getGemBarrier();
+                        int critChance  = this.getGemCritChance();
+                        bool isCrit     = critChance > 0 && rnd.Next(100) < critChance;
+                        int diff        = naturalDiff - barrier;
+                        if (isCrit && diff > 0) diff *= 2;
+
                         if (diff > 0)
                         {
                             e.hit -= diff;
-                            Console.WriteLine("{0} は {1} にヒット", this.name, e.name);
+                            if (isCrit)
+                            {
+                                Console.WriteLine("クリティカルヒット！ {0} は {1} に {2} のダメージ", this.name, e.name, diff);
+                                revealGemEffect(this, Gem.GemAbility.CritBoost);
+                            }
+                            else
+                            {
+                                Console.WriteLine("{0} は {1} にヒット", this.name, e.name);
+                            }
+                            // アンバー時間停止（30%の確率）
+                            int freezeTime = this.getGemFreezeTime();
+                            if (freezeTime > 0 && rnd.Next(100) < 30)
+                            {
+                                e.frozen = Math.Max(e.frozen, freezeTime);
+                                Console.WriteLine("{0} は時間が止まった！（{1}ターン）", e.name, freezeTime);
+                                revealGemEffect(this, Gem.GemAbility.TimeStop);
+                            }
+                        }
+                        else if (barrier > 0 && naturalDiff > 0)
+                        {
+                            Console.WriteLine("{0} は {1} を攻撃したが、結界に阻まれた", this.name, e.name);
+                            revealGemEffect(e, Gem.GemAbility.Barrier);
                         }
                         else
                         {
@@ -207,8 +235,15 @@ namespace Maze
             return true; // 誰もいない
         }
 
-        public virtual void move(MazeAlgo maze, List<Entity> entitylist, Entity target)         // target へ向かって移動する
-        { 
+        public virtual void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
+        {
+            if (!isLive()) return;
+            if (frozen > 0) { frozen--; return; }
+            doMove(maze, entitylist, target);
+        }
+
+        protected virtual void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
+        {
             ;           // 物やheroは、tick()では移動しない
         }
 
@@ -346,6 +381,51 @@ namespace Maze
         {
             if (hit <= 0) return false;
             return true;
+        }
+
+        // ─── 宝石効果ヘルパー ───────────────────────────
+        // 保持しているサファイアの防御値合計
+        private int getGemBarrier()
+        {
+            int b = 0;
+            foreach (Item item in itemlist)
+                if (item.entity is Gem g && g.ability == Gem.GemAbility.Barrier)
+                    b += g.power;
+            return b;
+        }
+
+        // 保持しているアクアマリンの最大クリティカル率（%）
+        private int getGemCritChance()
+        {
+            int best = 0;
+            foreach (Item item in itemlist)
+                if (item.entity is Gem g && g.ability == Gem.GemAbility.CritBoost)
+                {
+                    int chance = g.power >= 2 ? 25 : 15;
+                    if (chance > best) best = chance;
+                }
+            return best;
+        }
+
+        // 保持しているアンバーの最大凍結ターン数
+        private int getGemFreezeTime()
+        {
+            int best = 0;
+            foreach (Item item in itemlist)
+                if (item.entity is Gem g && g.ability == Gem.GemAbility.TimeStop)
+                {
+                    int turns = g.power >= 2 ? 4 : 2;
+                    if (turns > best) best = turns;
+                }
+            return best;
+        }
+
+        // 指定能力の宝石を効果発動で識別する
+        private static void revealGemEffect(Entity holder, Gem.GemAbility ability)
+        {
+            foreach (Item item in holder.itemlist)
+                if (item.entity is Gem g && g.ability == ability)
+                    g.revealByEffect();
         }
     }
 }
