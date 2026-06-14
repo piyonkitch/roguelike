@@ -64,7 +64,8 @@ namespace Maze
         public override void pickup(Entity user)     // user が拾う
         {
             user.gold += hit;
-            Console.WriteLine("{0} は {1} を拾った", user.name, name);
+            if (!user.suppressConsole)
+                Console.WriteLine("{0} は {1} を拾った", user.name, name);
         }
     }
 }

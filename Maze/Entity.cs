@@ -59,6 +59,8 @@ namespace Maze
         public bool amnesia { get; set; }   // 物忘れ症
         public bool levitation { get; set; }// 浮遊
         public int frozen { get; set; }     // 凍っているターン数
+        // パーティ外かつ非可視エンティティのアイテム取得メッセージを抑制するフラグ（一時的）
+        [NonSerialized] internal bool suppressConsole;
         public List<Item> itemlist;         // 持ち物リスト
         public Weapon weapon { get; set; }  // 武器 XXX public である必要があるか？
         public Armor armor { get; set; }    // 鎧 XXX public である必要があるか？
@@ -95,16 +97,19 @@ namespace Maze
             } while (maze.isWall(xpos, ypos));
         }
 
-        public void changePosNear(MazeAlgo maze, int cx, int cy, int maxDist)  // 指定座標の近くに配置
+        public void changePosNear(MazeAlgo maze, int cx, int cy, int maxDist, int maxWalkDist = 10)  // 指定座標の近くに配置
         {
             int tries = 0;
-            do
+            while (true)
             {
                 xpos = rnd.Next(Math.Max(0, cx - maxDist), Math.Min(Constant.NGRID, cx + maxDist + 1));
                 ypos = rnd.Next(Math.Max(0, cy - maxDist), Math.Min(Constant.NGRID, cy + maxDist + 1));
                 tries++;
-                if (tries > 100) { changePos(maze); return; }  // 見つからなければランダム配置
-            } while (maze.isWall(xpos, ypos) || (xpos == cx && ypos == cy) || maze.walk(xpos, ypos, cx, cy) == "");
+                if (tries > 200) { changePos(maze); return; }  // 見つからなければランダム配置
+                if (maze.isWall(xpos, ypos) || (xpos == cx && ypos == cy)) continue;
+                string wk = maze.walk(xpos, ypos, cx, cy);
+                if (wk != "" && wk.Length <= maxWalkDist) return;
+            }
         }
 
         private bool tryMove(int x, int y, MazeAlgo maze, List<Entity> entitylist)
@@ -165,7 +170,11 @@ namespace Maze
                         int critChance  = this.getGemCritChance();
                         bool isCrit     = critChance > 0 && rnd.Next(100) < critChance;
                         int diff        = naturalDiff - barrier;
-                        if (isCrit && diff > 0) diff *= 2;
+                        if (isCrit && diff > 0)
+                        {
+                            int critPower = this.getGemCritPower();
+                            diff = critPower >= 2 ? (int)(diff * 1.5) : (int)(diff * 1.3);
+                        }
 
                         if (diff > 0)
                         {
@@ -225,11 +234,13 @@ namespace Maze
             // 拾えるものを拾う (浮遊していなければ)
             if (!levitation)
             {
+                this.suppressConsole = !this.isPartyMember && !maze.isVisible(x, y);
                 foreach (Entity e in thigsOnGrid)
                 {
                     e.pickup(this);
                     e.graph = ' ';
                 }
+                this.suppressConsole = false;
             }
 
             return true; // 誰もいない
@@ -352,9 +363,10 @@ namespace Maze
         {
             if (graph == '%')
             {
-                if (user.hit < user.hitmax) user.hit++;    // 食べて hit を増やす 
-                Console.WriteLine("{0} は {1} を食べた", user.name, name);
-            } 
+                if (user.hit < user.hitmax) user.hit++;    // 食べて hit を増やす
+                if (!user.suppressConsole)
+                    Console.WriteLine("{0} は {1} を食べた", user.name, name);
+            }
         }
 
         public virtual void beat(Entity attacker)   // attacker が殴る
@@ -384,14 +396,14 @@ namespace Maze
         }
 
         // ─── 宝石効果ヘルパー ───────────────────────────
-        // 保持しているサファイアの防御値合計
+        // 保持しているサファイアの防御値（同季節は最強1個のみ有効）
         private int getGemBarrier()
         {
-            int b = 0;
+            int best = 0;
             foreach (Item item in itemlist)
                 if (item.entity is Gem g && g.ability == Gem.GemAbility.Barrier)
-                    b += g.power;
-            return b;
+                    if (g.power > best) best = g.power;
+            return best;
         }
 
         // 保持しているアクアマリンの最大クリティカル率（%）
@@ -407,6 +419,16 @@ namespace Maze
             return best;
         }
 
+        // 保持しているアクアマリンの最大パワー（倍率計算用: 1=小1.3倍, 2以上=大1.5倍）
+        private int getGemCritPower()
+        {
+            int best = 0;
+            foreach (Item item in itemlist)
+                if (item.entity is Gem g && g.ability == Gem.GemAbility.CritBoost)
+                    if (g.power > best) best = g.power;
+            return best;
+        }
+
         // 保持しているアンバーの最大凍結ターン数
         private int getGemFreezeTime()
         {
@@ -414,7 +436,7 @@ namespace Maze
             foreach (Item item in itemlist)
                 if (item.entity is Gem g && g.ability == Gem.GemAbility.TimeStop)
                 {
-                    int turns = g.power >= 2 ? 4 : 2;
+                    int turns = g.power >= 2 ? 2 : 1;
                     if (turns > best) best = turns;
                 }
             return best;

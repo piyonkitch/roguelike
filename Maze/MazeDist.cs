@@ -70,6 +70,18 @@ namespace Maze
                 }
             }
             grid[0, 0].isWall = false; // スタート地点は壁なしにする
+
+            // 四方が壁（または盤外）に囲まれた孤立マスを壁に変換する（1パスのみ）
+            for (int y = 0; y < Constant.NGRID; y++)
+                for (int x = 0; x < Constant.NGRID; x++)
+                {
+                    if (grid[x, y].isWall) continue;
+                    bool left  = x == 0                  || grid[x - 1, y].isWall;
+                    bool right = x == Constant.NGRID - 1 || grid[x + 1, y].isWall;
+                    bool up    = y == 0                  || grid[x, y - 1].isWall;
+                    bool down  = y == Constant.NGRID - 1 || grid[x, y + 1].isWall;
+                    if (left && right && up && down) grid[x, y].isWall = true;
+                }
         }
 
         // returen a direction string to reach "from" to "to".

@@ -38,6 +38,8 @@ namespace Maze
     {
         // この距離以上離れたらヒーローを追いかける（マンハッタン距離）
         private const int FOLLOW_DISTANCE = 2;
+        // この距離を超えたら他の行動をキャンセルして即座に追従する
+        private const int MAX_HERO_DISTANCE = 8;
 
         public int mp { get; set; }
         public int mpmax { get; set; }
@@ -108,6 +110,16 @@ namespace Maze
 
             // MP自然回復（20%）
             if (magicRnd.Next(100) < 20 && mp < mpmax) mp++;
+
+            // Heroから離れすぎている場合は即座に追従
+            int heroManhattan = Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos);
+            if (heroManhattan > MAX_HERO_DISTANCE)
+            {
+                string routeToHero = maze.walk(xpos, ypos, target.xpos, target.ypos);
+                if (routeToHero != "") base.manualmove(routeToHero.Substring(0, 1), maze, entitylist);
+                autoEquip(entitylist);
+                return;
+            }
 
             // クエストアイテム配達: Stingを持っていたらBilboへ届ける
             Item questItem = findQuestItem();

@@ -515,17 +515,18 @@ namespace Maze
                 } while (maze.walk(hero.xpos, hero.ypos, entitylist.Last().xpos, entitylist.Last().ypos) == "");
             }
 
-            // 宝石: 各フロアに大きな原石1個 + 小さな星石2〜3個
+            // 宝石: フロア2-4に大きな原石（フロア1には登場しない）、小さな星石2個
+            // 4階のみ大アンバーと大アクアマリンの2個が登場する
             switch (floor)
             {
-                case 1: entitylist.Add(Gem.CreateLargeRoseQuartz(maze));   System.Threading.Thread.Sleep(20); break;
-                case 2: entitylist.Add(Gem.CreateLargeSapphire(maze));     System.Threading.Thread.Sleep(20); break;
-                case 3: entitylist.Add(Gem.CreateLargeAmber(maze));        System.Threading.Thread.Sleep(20); break;
-                case 4: entitylist.Add(Gem.CreateLargeAquamarine(maze));   System.Threading.Thread.Sleep(20); break;
+                case 2: entitylist.Add(Gem.CreateLargeRoseQuartz(maze)); System.Threading.Thread.Sleep(20); break;
+                case 3: entitylist.Add(Gem.CreateLargeSapphire(maze));   System.Threading.Thread.Sleep(20); break;
+                case 4:
+                    entitylist.Add(Gem.CreateLargeAmber(maze));       System.Threading.Thread.Sleep(20);
+                    entitylist.Add(Gem.CreateLargeAquamarine(maze));  System.Threading.Thread.Sleep(20);
+                    break;
             }
-            int smallGemCount = new Random().Next(2, 4); // 2 or 3
-            System.Threading.Thread.Sleep(20);
-            for (int i = 0; i < smallGemCount; i++)
+            for (int i = 0; i < 2; i++)
             {
                 entitylist.Add(createRandomSmallGem(maze));
                 System.Threading.Thread.Sleep(20);
@@ -611,16 +612,8 @@ namespace Maze
                 hero.amnesia = false;
             }
 
-            // Hero の視界
+            // Hero の視界のみ（Companion の視界は画面に反映しない）
             addVision(hero.xpos, hero.ypos);
-
-            // Companion の視界（非アクティブは別フロアなのでスキップ）
-            foreach (Entity c in companions)
-            {
-                if (c.hit <= 0) continue;
-                if (c is Companion comp && comp.isInactive) continue;
-                addVision(c.xpos, c.ypos);
-            }
         }
 
         private void addVision(int cx, int cy)
@@ -650,20 +643,13 @@ namespace Maze
 
         public bool isEntitySeeable(Entity e)
         {
-            if (isSeeThru(hero.xpos, hero.ypos, e.xpos, e.ypos) &&
-                Math.Sqrt(Math.Pow(e.xpos - hero.xpos, 2) + Math.Pow(e.ypos - hero.ypos, 2)) <= Constant.VISION_DISTANCE)
+            // Companion 自身は常時表示（視界には依存しない）
+            if (e.isCompanion && e.hit > 0 && !(e is Companion ci && ci.isInactive))
                 return true;
 
-            foreach (Entity c in companions)
-            {
-                if (c.hit <= 0) continue;
-                if (c is Companion comp && comp.isInactive) continue; // 別フロアはスキップ
-                if (isSeeThru(c.xpos, c.ypos, e.xpos, e.ypos) &&
-                    Math.Sqrt(Math.Pow(e.xpos - c.xpos, 2) + Math.Pow(e.ypos - c.ypos, 2)) <= Constant.VISION_DISTANCE)
-                    return true;
-            }
-
-            return false;
+            // それ以外は Hero の視界のみで判定
+            return isSeeThru(hero.xpos, hero.ypos, e.xpos, e.ypos) &&
+                   Math.Sqrt(Math.Pow(e.xpos - hero.xpos, 2) + Math.Pow(e.ypos - hero.ypos, 2)) <= Constant.VISION_DISTANCE;
         }
 
         public void tick()
@@ -734,30 +720,29 @@ namespace Maze
             } while (hero.frozen-- > 0);
         }
 
-        // ローズクォーツのパッシブ回復をパーティ全員に適用する
+        // ローズクォーツのパッシブ回復を全エンティティに適用する（同季節は最強1個のみ有効）
         private void applyGemHealing()
         {
-            var party = new System.Collections.Generic.List<Entity> { hero };
-            party.AddRange(companions);
-            foreach (Entity pm in party)
+            foreach (Entity pm in entitylist)
             {
-                if (pm.hit <= 0) continue;
+                if (pm.hit <= 0 || pm.hit >= pm.hitmax) continue;
                 if (pm is Companion comp && comp.isInactive) continue;
-                foreach (Item item in pm.itemlist.ToList())
+                Gem bestHeal = null;
+                foreach (Item item in pm.itemlist)
+                    if (item.entity is Gem g && g.ability == Gem.GemAbility.Heal)
+                        if (bestHeal == null || g.power > bestHeal.power) bestHeal = g;
+                if (bestHeal == null) continue;
+                int interval = bestHeal.power >= 2 ? 3 : 5;
+                if (turnCounter % interval == 0)
                 {
-                    if (!(item.entity is Gem g) || g.ability != Gem.GemAbility.Heal) continue;
-                    int interval = g.power >= 2 ? 3 : 5;   // 大: 3ターンごと, 小: 5ターンごと
-                    if (turnCounter % interval == 0 && pm.hit < pm.hitmax)
-                    {
-                        pm.hit++;
-                        Console.WriteLine("{0} の体が温まった（{1}の加護）", pm.name, g.name);
-                        g.revealByEffect();
-                    }
+                    pm.hit++;
+                    Console.WriteLine("{0} の体が温まった（{1}の加護）", pm.name, bestHeal.name);
+                    bestHeal.revealByEffect();
                 }
             }
         }
 
-        // パーティが保持する大きな原石の種類を確認してクエスト進捗を更新する
+        // パーティが保持する大きな原石の種類を確認してクエスト進捗を更新する（春夏秋冬の4種）
         private void updateGemQuest()
         {
             if (gemQuest.IsCompleted) return;
@@ -789,7 +774,7 @@ namespace Maze
 
             if (!wasCompleted && gemQuest.IsCompleted)
             {
-                Console.WriteLine("★★★ 伝説の宝石４種を全て集めた！ 大クエスト完了！ ★★★");
+                Console.WriteLine("★★ 伝説の宝石４種を全て集めた！ 大クエスト完了！ ★★");
                 hero.gold += 200;
             }
         }

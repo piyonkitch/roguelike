@@ -197,7 +197,8 @@ namespace Maze
             }
             if (!found) user.itemlist.Add(new Item(this));
 
-            Console.WriteLine("{0} は {1} を拾った", user.name, this.name);
+            if (!user.suppressConsole)
+                Console.WriteLine("{0} は {1} を拾った", user.name, this.name);
         }
 
         public override bool isIdentified()

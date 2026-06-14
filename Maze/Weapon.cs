@@ -124,7 +124,8 @@ namespace Maze
         public override void pickup(Entity user)
         {
             user.itemlist.Add(new Item(this));          // weapon はまとめない
-            Console.WriteLine("{0} は {1} を拾った", user.name, this.name);
+            if (!user.suppressConsole)
+                Console.WriteLine("{0} は {1} を拾った", user.name, this.name);
         }
     }
 }

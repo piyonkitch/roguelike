@@ -91,7 +91,8 @@ namespace Maze
         public override void pickup(Entity user)
         {
             user.itemlist.Add(new Item(this));  // 宝石は同名でもスタックしない（各個体が別の宝石）
-            Console.WriteLine("{0} は {1} を拾った", user.name, this.name);
+            if (!user.suppressConsole)
+                Console.WriteLine("{0} は {1} を拾った", user.name, this.name);
         }
 
         // ─────────────────────────────────────────
