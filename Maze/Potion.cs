@@ -168,6 +168,8 @@ namespace Maze
         {
             Console.WriteLine("あれ？");
             user.amnesia = true;
+            if (user is Companion companion)
+                companion.clearFailedAltars();
         }
 
         //

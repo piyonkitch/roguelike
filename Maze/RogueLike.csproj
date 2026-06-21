@@ -94,6 +94,7 @@
     <Compile Include="Gold.cs" />
     <Compile Include="Orc.cs" />
     <Compile Include="Entity.cs" />
+    <Compile Include="Altar.cs" />
     <Compile Include="Gem.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>

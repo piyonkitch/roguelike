@@ -55,16 +55,16 @@ namespace Maze
         public int stairX, stairY;  // Hero がこのフロアを離れた座標（戻り先）
     }
 
-    // 宝石クエスト進捗：大きな原石４種を集める
+    // 宝石クエスト進捗：4階の祭壇に大きな原石4種を嵌め込む
     [Serializable]
     class GemQuest
     {
-        public bool roseQuartzCollected;
-        public bool sapphireCollected;
-        public bool amberCollected;
-        public bool aquamarineCollected;
+        public bool roseQuartzEmbedded;
+        public bool sapphireEmbedded;
+        public bool amberEmbedded;
+        public bool aquamarineEmbedded;
         public bool IsCompleted =>
-            roseQuartzCollected && sapphireCollected && amberCollected && aquamarineCollected;
+            roseQuartzEmbedded && sapphireEmbedded && amberEmbedded && aquamarineEmbedded;
     }
 
     class Logic
@@ -531,6 +531,56 @@ namespace Maze
                 entitylist.Add(createRandomSmallGem(maze));
                 System.Threading.Thread.Sleep(20);
             }
+
+            // 4階に祭壇を4つ配置（東南西北、季節との対応はプレイヤーには秘密）
+            if (floor == 4) placeAltars();
+        }
+
+        // 4階の四方向の端に祭壇を配置する
+        private void placeAltars()
+        {
+            // BFS で Hero から到達可能な全マスを収集
+            bool[,] visited = new bool[Constant.NGRID, Constant.NGRID];
+            List<int[]> bfsQueue = new List<int[]> { new int[] { hero.xpos, hero.ypos } };
+            visited[hero.xpos, hero.ypos] = true;
+            List<int[]> reachable = new List<int[]>();
+            int head = 0;
+            int[] dx = { 1, -1, 0, 0 };
+            int[] dy = { 0, 0, 1, -1 };
+
+            while (head < bfsQueue.Count)
+            {
+                int[] cur = bfsQueue[head++];
+                reachable.Add(cur);
+                for (int i = 0; i < 4; i++)
+                {
+                    int nx = cur[0] + dx[i], ny = cur[1] + dy[i];
+                    if (nx < 0 || nx >= Constant.NGRID || ny < 0 || ny >= Constant.NGRID) continue;
+                    if (maze.isWall(nx, ny) || visited[nx, ny]) continue;
+                    visited[nx, ny] = true;
+                    bfsQueue.Add(new int[] { nx, ny });
+                }
+            }
+
+            // 既存エンティティの座標を除外
+            HashSet<string> occupied = new HashSet<string>(entitylist.Select(e => e.xpos + "," + e.ypos));
+            List<int[]> altarCandidates = reachable.Where(c => !occupied.Contains(c[0] + "," + c[1])).ToList();
+            if (altarCandidates.Count < 4) return;
+
+            int mid = Constant.NGRID / 2;
+            int[] east  = altarCandidates.OrderByDescending(c => c[0]).ThenBy(c => Math.Abs(c[1] - mid)).First();
+            altarCandidates.Remove(east);
+            int[] south = altarCandidates.OrderByDescending(c => c[1]).ThenBy(c => Math.Abs(c[0] - mid)).First();
+            altarCandidates.Remove(south);
+            int[] west  = altarCandidates.OrderBy(c => c[0]).ThenBy(c => Math.Abs(c[1] - mid)).First();
+            altarCandidates.Remove(west);
+            int[] north = altarCandidates.OrderBy(c => c[1]).ThenBy(c => Math.Abs(c[0] - mid)).First();
+
+            // 方角と季節の対応（プレイヤーには秘密）: 東=春, 南=夏, 西=秋, 北=冬
+            entitylist.Add(new Altar(maze, east[0],  east[1],  Gem.GemAbility.Heal));
+            entitylist.Add(new Altar(maze, south[0], south[1], Gem.GemAbility.Barrier));
+            entitylist.Add(new Altar(maze, west[0],  west[1],  Gem.GemAbility.TimeStop));
+            entitylist.Add(new Altar(maze, north[0], north[1], Gem.GemAbility.CritBoost));
         }
 
         private Gem createRandomSmallGem(MazeAlgo maze)
@@ -742,39 +792,35 @@ namespace Maze
             }
         }
 
-        // パーティが保持する大きな原石の種類を確認してクエスト進捗を更新する（春夏秋冬の4種）
+        // 4階の祭壇の嵌め込み状態を確認してクエスト進捗を更新する
         private void updateGemQuest()
         {
             if (gemQuest.IsCompleted) return;
 
-            bool rq = false, sa = false, am = false, aq = false;
-            var party = new System.Collections.Generic.List<Entity> { hero };
-            party.AddRange(companions);
-            foreach (Entity pm in party)
-            {
-                if (pm.hit <= 0) continue;
-                foreach (Item item in pm.itemlist)
-                {
-                    if (!(item.entity is Gem g) || !g.isLarge) continue;
-                    switch (g.ability)
-                    {
-                        case Gem.GemAbility.Heal:      rq = true; break;
-                        case Gem.GemAbility.Barrier:   sa = true; break;
-                        case Gem.GemAbility.TimeStop:  am = true; break;
-                        case Gem.GemAbility.CritBoost: aq = true; break;
-                    }
-                }
-            }
+            // 祭壇はフロア4にのみ存在するため、フロア4にいるときのみ状態を更新する
+            if (floor != 4) return;
 
             bool wasCompleted = gemQuest.IsCompleted;
-            gemQuest.roseQuartzCollected  = rq;
-            gemQuest.sapphireCollected    = sa;
-            gemQuest.amberCollected       = am;
-            gemQuest.aquamarineCollected  = aq;
+            bool rq = false, sa = false, am = false, aq = false;
+            foreach (Entity e in entitylist)
+            {
+                if (!(e is Altar altar) || altar.embeddedGem == null) continue;
+                switch (altar.season)
+                {
+                    case Gem.GemAbility.Heal:      rq = true; break;
+                    case Gem.GemAbility.Barrier:   sa = true; break;
+                    case Gem.GemAbility.TimeStop:  am = true; break;
+                    case Gem.GemAbility.CritBoost: aq = true; break;
+                }
+            }
+            gemQuest.roseQuartzEmbedded  = rq;
+            gemQuest.sapphireEmbedded    = sa;
+            gemQuest.amberEmbedded       = am;
+            gemQuest.aquamarineEmbedded  = aq;
 
             if (!wasCompleted && gemQuest.IsCompleted)
             {
-                Console.WriteLine("★★ 伝説の宝石４種を全て集めた！ 大クエスト完了！ ★★");
+                Console.WriteLine("★★ 伝説の宝石４種を全て祭壇に嵌め込んだ！ 大クエスト完了！ ★★");
                 hero.gold += 200;
             }
         }
@@ -894,12 +940,41 @@ namespace Maze
 
         public void ctrlUse(int index)
         {
-            hero.itemlist[index].use(hero);
+            Item item = hero.itemlist[index];
 
-            if (hero.itemlist[index].num == 0)
+            // 宝石を選んでいて、Heroが祭壇の上にいる場合は嵌め込みを試みる
+            if (item.entity is Gem gem)
             {
-                hero.itemlist.RemoveAt(index);
+                Altar altar = entitylist.OfType<Altar>().FirstOrDefault(
+                    a => a.xpos == hero.xpos && a.ypos == hero.ypos);
+                if (altar != null)
+                {
+                    tryEmbedGem(gem, altar, hero, index);
+                    return;
+                }
             }
+
+            item.use(hero);
+            if (item.num == 0) hero.itemlist.RemoveAt(index);
+        }
+
+        // 宝石を祭壇に嵌め込む（Hero用）
+        private void tryEmbedGem(Gem gem, Altar altar, Entity user, int itemIndex)
+        {
+            if (altar.embeddedGem != null)
+            {
+                Console.WriteLine("この祭壇にはすでに宝石が嵌まっている");
+                return;
+            }
+            if (!gem.isLarge || gem.ability == Gem.GemAbility.None || gem.ability != altar.season)
+            {
+                Console.WriteLine("…何も起きなかった");
+                return;
+            }
+            altar.embeddedGem = gem;
+            user.itemlist.RemoveAt(itemIndex);
+            gem.revealByEffect();
+            Console.WriteLine("{0} を祭壇に嵌め込んだ！", gem.name);
         }
 
         public void ctrlDrop(int index)

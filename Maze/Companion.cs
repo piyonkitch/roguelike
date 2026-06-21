@@ -54,6 +54,10 @@ namespace Maze
         [NonSerialized]
         private Random magicRnd;
 
+        // 宝石ごとに「失敗した祭壇座標」を記憶する。Amnesia で消去される。
+        [NonSerialized]
+        private Dictionary<Gem, HashSet<string>> failedAltars;
+
         private struct MagicDir
         {
             public int dx, dy;
@@ -91,6 +95,43 @@ namespace Maze
         {
             if (pendingMagicEffects == null) pendingMagicEffects = new List<MagicEffect>();
             if (magicRnd == null) magicRnd = new Random(Guid.NewGuid().GetHashCode());
+            if (failedAltars == null) failedAltars = new Dictionary<Gem, HashSet<string>>();
+        }
+
+        // Amnesia Potion で祭壇の失敗記憶を消去する
+        public void clearFailedAltars()
+        {
+            ensureTransients();
+            failedAltars.Clear();
+            Console.WriteLine("{0} は祭壇のことを忘れてしまった！", name);
+        }
+
+        // 持っている大きな宝石と、それを運ぶ先の祭壇（最も近い空き祭壇で失敗記憶なし）を返す
+        // 対象がなければ altar は null を返す
+        private Altar findAltarTarget(List<Entity> entitylist, out Gem gemToDeliver)
+        {
+            gemToDeliver = null;
+            ensureTransients();
+            foreach (Item item in itemlist)
+            {
+                if (!(item.entity is Gem gem)) continue;
+                if (!gem.isLarge || gem.ability == Gem.GemAbility.None) continue;
+
+                Altar nearest = null;
+                int nearestDist = int.MaxValue;
+                foreach (Entity e in entitylist)
+                {
+                    if (!(e is Altar altar)) continue;
+                    if (altar.embeddedGem != null) continue;
+                    string key = altar.xpos + "," + altar.ypos;
+                    HashSet<string> failed;
+                    if (failedAltars.TryGetValue(gem, out failed) && failed.Contains(key)) continue;
+                    int dist = Math.Abs(altar.xpos - xpos) + Math.Abs(altar.ypos - ypos);
+                    if (dist < nearestDist) { nearestDist = dist; nearest = altar; }
+                }
+                if (nearest != null) { gemToDeliver = gem; return nearest; }
+            }
+            return null;
         }
 
         // クエストアイテム（engraveName付き武器）を持っているか確認
@@ -150,6 +191,45 @@ namespace Maze
                     else
                     {
                         // 隣接: Hobbitのmove()がStingを受け取る。ここでは待機
+                        autoEquip(entitylist);
+                        return;
+                    }
+                }
+            }
+
+            // 祭壇への宝石配達（大きな原石を持っていて、entitylistに空き祭壇がある場合）
+            Gem gemToDeliver;
+            Altar altarTarget = findAltarTarget(entitylist, out gemToDeliver);
+            if (altarTarget != null)
+            {
+                if (xpos == altarTarget.xpos && ypos == altarTarget.ypos)
+                {
+                    // 祭壇の上にいる: 嵌め込みを試みる
+                    string altarKey = altarTarget.xpos + "," + altarTarget.ypos;
+                    if (altarTarget.season == gemToDeliver.ability && altarTarget.embeddedGem == null)
+                    {
+                        altarTarget.embeddedGem = gemToDeliver;
+                        for (int i = itemlist.Count - 1; i >= 0; i--)
+                            if (itemlist[i].entity == gemToDeliver) { itemlist.RemoveAt(i); break; }
+                        gemToDeliver.revealByEffect();
+                        Console.WriteLine("{0} は {1} を祭壇に嵌め込んだ！", name, gemToDeliver.name);
+                    }
+                    else
+                    {
+                        // 季節が合わない: 失敗記憶に記録
+                        if (!failedAltars.ContainsKey(gemToDeliver))
+                            failedAltars[gemToDeliver] = new HashSet<string>();
+                        failedAltars[gemToDeliver].Add(altarKey);
+                    }
+                    autoEquip(entitylist);
+                    return;
+                }
+                else
+                {
+                    string routeToAltar = maze.walk(xpos, ypos, altarTarget.xpos, altarTarget.ypos);
+                    if (routeToAltar != "")
+                    {
+                        base.manualmove(routeToAltar.Substring(0, 1), maze, entitylist);
                         autoEquip(entitylist);
                         return;
                     }

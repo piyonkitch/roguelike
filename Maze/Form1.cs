@@ -74,6 +74,7 @@ namespace Maze
             if (e.graph == '@' && !e.isCompanion) return 4; // Hero
             if (e.graph == '@' && e.isCompanion)  return 3; // Companion
             if (e is Gem)                          return 0; // 宝石はアイテム扱い（hit=1だが生物ではない）
+            if (e is Altar)                        return 0; // 祭壇はアイテム扱い
             if (e.hit > 0)                         return 2; // 生きている敵
             if (e.graph == '%')                    return 1; // 死体
             return 0;                                        // アイテム
@@ -118,7 +119,7 @@ namespace Maze
             {
                 bool seeable = logic.isEntitySeeable(e);
                 // 階段は一度見たら遠ざかっても表示し続ける
-                if (!seeable && (e.graph == '>' || e.graph == '<')) seeable = logic.maze.isVisible(e.xpos, e.ypos);
+                if (!seeable && (e.graph == '>' || e.graph == '<' || e.graph == '_')) seeable = logic.maze.isVisible(e.xpos, e.ypos);
                 if (!seeable) continue;
                 string key = e.xpos + "," + e.ypos;
                 if (!cellTop.ContainsKey(key) || entityPriority(e) > entityPriority(cellTop[key]))
@@ -130,6 +131,14 @@ namespace Maze
                 {
                     using (Brush brush = new SolidBrush(gem.DisplayColor))
                         g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                }
+                else if (e is Altar altar)
+                {
+                    System.Drawing.Color altarColor = altar.embeddedGem != null
+                        ? altar.embeddedGem.DisplayColor
+                        : System.Drawing.Color.Gray;
+                    using (Brush brush = new SolidBrush(altarColor))
+                        g.DrawString("_", fnt, brush, Dots * e.xpos, Dots * e.ypos);
                 }
                 else
                 {
@@ -183,10 +192,10 @@ namespace Maze
             // 宝石クエスト状況（1行でコンパクト表示）
             GemQuest q = logic.gemQuest;
             labelStatus.Text += "宝石(春夏秋冬)："
-                              + (q.roseQuartzCollected  ? "★" : "☆")
-                              + (q.sapphireCollected    ? "★" : "☆")
-                              + (q.amberCollected       ? "★" : "☆")
-                              + (q.aquamarineCollected  ? "★" : "☆")
+                              + (q.roseQuartzEmbedded  ? "★" : "☆")
+                              + (q.sapphireEmbedded    ? "★" : "☆")
+                              + (q.amberEmbedded       ? "★" : "☆")
+                              + (q.aquamarineEmbedded  ? "★" : "☆")
                               + (q.IsCompleted ? " 完了！" : "") + "\n";
 
             // REVISIT 2015/09/06 Logic logic 中でゲームオーバー判定したほうが良いのだけど…

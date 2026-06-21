@@ -140,6 +140,10 @@ namespace Maze
                     {
                         ;
                     }
+                    else if (e.graph == '_')             // 祭壇: 通過可能（拾わない）
+                    {
+                        ;
+                    }
                     else if (e.graph == '@' && this.isPartyMember && !this.isCompanion)
                     {                                    // Hero → Companion: 位置を入れ替える
                         e.xpos = this.xpos;
