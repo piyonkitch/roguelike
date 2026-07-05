@@ -47,6 +47,8 @@ namespace Maze
         // 壁
         abstract public bool isWall(int x, int y);
         abstract public void breakWall(int x, int y);
+        // 生成時のマップ編集用（Dwarfの壁掘りとは無関係。5x5クリア判定などの副作用を発生させない）
+        abstract public void setWall(int x, int y, bool isWall);
         // 穴（床抜け）
         abstract public bool isPit(int x, int y);
         abstract public void addPit(int x, int y);

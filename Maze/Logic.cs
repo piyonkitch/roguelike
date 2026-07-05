@@ -67,6 +67,30 @@ namespace Maze
             roseQuartzEmbedded && sapphireEmbedded && amberEmbedded && aquamarineEmbedded;
     }
 
+    // ポリュペモス討伐クエスト進捗：5階のポリュペモスを倒す
+    [Serializable]
+    class PolyphemusQuest
+    {
+        public bool triggered;
+        public bool completed;
+    }
+
+    // 海峡越えクエスト進捗：6階でスキュラかカリュブディスの危険を乗り越えて7階へ渡る
+    [Serializable]
+    class StraitQuest
+    {
+        public bool triggered;
+        public bool completed;
+    }
+
+    // 冥府探訪クエスト進捗：7階でキルケーの豚化を越え、テイレシアスと出会う
+    [Serializable]
+    class UnderworldQuest
+    {
+        public bool triggered;
+        public bool completed;
+    }
+
     class Logic
     {
         public List<MagicEffect> magicEffects = new List<MagicEffect>();
@@ -81,6 +105,9 @@ namespace Maze
         private Dictionary<int, FloorState> savedFloors = new Dictionary<int, FloorState>();
 
         public GemQuest gemQuest = new GemQuest();
+        public PolyphemusQuest polyphemusQuest = new PolyphemusQuest();
+        public StraitQuest straitQuest = new StraitQuest();
+        public UnderworldQuest underworldQuest = new UnderworldQuest();
         private int turnCounter;
 
         // Hero から到達可能なマス数を BFS で数える
@@ -145,6 +172,9 @@ namespace Maze
             floor = 1;
             savedFloors = new Dictionary<int, FloorState>();
             gemQuest = new GemQuest();
+            polyphemusQuest = new PolyphemusQuest();
+            straitQuest = new StraitQuest();
+            underworldQuest = new UnderworldQuest();
             turnCounter = 0;
 
             do
@@ -398,12 +428,19 @@ namespace Maze
 
         private void initEnemyAndThings()
         {
+            // 6階は中央に壁の帯を作り、Scylla側かCharybdis側のどちらかを必ず通らないと
+            // 反対側（下り階段）へ渡れないようにする。他の配置より先に地形を確定させる
+            if (floor == 6) carveStrait6();
+
             string   clist =     "ABCDEFGHIJKLMNOPQRSTUVWXYZ$[)!?>";
             string[] elist = {
                                  "03000000004000000000000000522941",
                                  "00000002204000200000000000522341",
                                  "00000002400000600000000000522341",
-                                 "00060000000000200000000000522340",
+                                 "00060000000000200000000000522341",
+                                 "00000000003000300000000000522341",
+                                 "00000000000000000000000000522340",
+                                 "00000000000000000000000000522340",
                              };
             // AcidBlob
             for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("A"), 1)); i++)
@@ -499,6 +536,44 @@ namespace Maze
                 System.Threading.Thread.Sleep(20);
             }
 
+            // Siren・Polyphemus: 5階にのみ配置
+            if (floor == 5)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    entitylist.Add(new Siren(maze));
+                    System.Threading.Thread.Sleep(20);
+                }
+                entitylist.Add(new Polyphemus(maze));
+                System.Threading.Thread.Sleep(20);
+            }
+
+            // 呪われた乗組員: 6階にのみ配置（Scylla・Charybdisは carveStrait6() で配置済み）
+            if (floor == 6)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    entitylist.Add(new CursedSailor(maze));
+                    System.Threading.Thread.Sleep(20);
+                }
+            }
+
+            // Circe・モーリュの根・冥府の霊・テイレシアス: 7階にのみ配置
+            if (floor == 7)
+            {
+                entitylist.Add(new Circe(maze));
+                System.Threading.Thread.Sleep(20);
+                entitylist.Add(new MolyRoot(maze));
+                System.Threading.Thread.Sleep(20);
+                for (int i = 0; i < 3; i++)
+                {
+                    entitylist.Add(new Shade(maze));
+                    System.Threading.Thread.Sleep(20);
+                }
+                entitylist.Add(new Teiresias(maze));
+                System.Threading.Thread.Sleep(20);
+            }
+
             // Armor
             for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("["), 1)); i++)
             {
@@ -526,10 +601,14 @@ namespace Maze
                     entitylist.Add(Gem.CreateLargeAquamarine(maze));  System.Threading.Thread.Sleep(20);
                     break;
             }
-            for (int i = 0; i < 2; i++)
+            // 小さな星石は宝石クエストの対象である1-4階にのみ配置する
+            if (floor <= 4)
             {
-                entitylist.Add(createRandomSmallGem(maze));
-                System.Threading.Thread.Sleep(20);
+                for (int i = 0; i < 2; i++)
+                {
+                    entitylist.Add(createRandomSmallGem(maze));
+                    System.Threading.Thread.Sleep(20);
+                }
             }
 
             // 4階に祭壇を4つ配置（東南西北、季節との対応はプレイヤーには秘密）
@@ -581,6 +660,50 @@ namespace Maze
             entitylist.Add(new Altar(maze, south[0], south[1], Gem.GemAbility.Barrier));
             entitylist.Add(new Altar(maze, west[0],  west[1],  Gem.GemAbility.TimeStop));
             entitylist.Add(new Altar(maze, north[0], north[1], Gem.GemAbility.CritBoost));
+        }
+
+        // 6階中央に南北に貫く壁の帯を作り、2箇所だけ通路（ゲート）を開ける。
+        // 一方にはScyllaを配置し、もう一方にはCharybdis（渦=既存の穴システム）を仕込む。
+        // 下り階段はHeroから見て奥側（壁の帯の向こう）に強制配置するため、
+        // どちらかのゲートを通らなければ先に進めない。
+        private void carveStrait6()
+        {
+            int column = (hero.xpos < Constant.NGRID / 2) ? Constant.NGRID / 2 : Constant.NGRID / 2 - 1;
+            for (int y = 0; y < Constant.NGRID; y++)
+                maze.setWall(column, y, true);
+
+            Random rnd = new Random();
+            System.Threading.Thread.Sleep(20);
+            int scyllaGateY = rnd.Next(1, Constant.NGRID - 1);
+            int charybdisGateY;
+            do { charybdisGateY = rnd.Next(1, Constant.NGRID - 1); } while (Math.Abs(charybdisGateY - scyllaGateY) < 4);
+
+            maze.setWall(column, scyllaGateY,     false);
+            maze.setWall(column, charybdisGateY,  false);
+
+            int farSide  = (hero.xpos < column) ? 1 : -1; // Heroから見て下り階段側の方向
+            int scyllaX  = column + farSide;
+            maze.setWall(scyllaX, scyllaGateY, false);
+
+            Scylla scylla = new Scylla(maze);
+            scylla.xpos = scyllaX;
+            scylla.ypos = scyllaGateY;
+            entitylist.Add(scylla);
+
+            maze.addPit(column, charybdisGateY); // 踏むと即座に7階へ落下する
+
+            // 下り階段を奥側に強制配置する
+            int sx, sy;
+            do
+            {
+                sx = (farSide > 0) ? rnd.Next(column + 1, Constant.NGRID) : rnd.Next(0, column);
+                sy = rnd.Next(Constant.NGRID);
+            } while (maze.isWall(sx, sy) || maze.walk(hero.xpos, hero.ypos, sx, sy) == "");
+
+            Stair stair = new Stair(maze);
+            stair.xpos = sx;
+            stair.ypos = sy;
+            entitylist.Add(stair);
         }
 
         private Gem createRandomSmallGem(MazeAlgo maze)
@@ -705,7 +828,9 @@ namespace Maze
         public void tick()
         {
             do
-            {                    // hero.frozen が > 0 なら繰り返す
+            {                    // hero.frozen が > 0、または hero.charmed が > 0 なら繰り返す
+                if (hero.polymorphed > 0) hero.polymorphed--;
+
                 foreach (Entity e in entitylist.ToList())  // ToList() でスナップショットを作りループ中の変更を許容
                 {
                     e.move(maze, entitylist, hero);
@@ -750,6 +875,9 @@ namespace Maze
                 turnCounter++;
                 applyGemHealing();
                 updateGemQuest();
+                updatePolyphemusQuest();
+                updateStraitQuest();
+                updateUnderworldQuest();
 
                 // 視界を更新
                 newvision();
@@ -767,7 +895,20 @@ namespace Maze
                 }
                 // 期限切れエフェクトを削除
                 magicEffects.RemoveAll(ef => ef.expiry <= DateTime.Now);
-            } while (hero.frozen-- > 0);
+            } while (hero.frozen-- > 0 || applyHeroCharm());
+        }
+
+        // 魅了状態のHeroを魅了元へ強制的に1マス近づける。まだ魅了が残っていれば true を返す（tick()のループ継続条件）
+        private bool applyHeroCharm()
+        {
+            if (hero.charmed <= 0) return false;
+            if (hero.charmSource != null && hero.charmSource.hit > 0)
+            {
+                string path = maze.walk(hero.xpos, hero.ypos, hero.charmSource.xpos, hero.charmSource.ypos);
+                if (path != "") hero.manualmove(path.Substring(0, 1), maze, entitylist);
+            }
+            hero.charmed--;
+            return hero.charmed > 0;
         }
 
         // ローズクォーツのパッシブ回復を全エンティティに適用する（同季節は最強1個のみ有効）
@@ -825,6 +966,79 @@ namespace Maze
             }
         }
 
+        // 5階のポリュペモス討伐クエストの進捗を確認する
+        private void updatePolyphemusQuest()
+        {
+            if (polyphemusQuest.completed) return;
+            if (floor != 5) return;
+
+            Polyphemus poly = entitylist.OfType<Polyphemus>().FirstOrDefault();
+            if (poly == null) return;
+
+            if (!polyphemusQuest.triggered && isEntitySeeable(poly))
+            {
+                polyphemusQuest.triggered = true;
+                Console.WriteLine("一つ目の巨人ポリュペモスが目の前に現れた！");
+            }
+
+            if (polyphemusQuest.triggered && poly.hit <= 0)
+            {
+                polyphemusQuest.completed = true;
+                Console.WriteLine("★ ポリュペモスを打ち倒した！ クエスト達成！ ★");
+                // 報酬（あると便利な特別アイテム）は後続フロアの内容と合わせて後日決定する
+            }
+        }
+
+        // 6階の海峡越えクエストの進捗を確認する（Scylla側の突破・Charybdisでの強制落下のどちらでも達成扱い）
+        private void updateStraitQuest()
+        {
+            if (straitQuest.completed) return;
+
+            if (floor == 6)
+            {
+                if (!straitQuest.triggered)
+                {
+                    straitQuest.triggered = true;
+                    Console.WriteLine("危険な海峡だ…！ スキュラかカリュブディスか、慎重に選ばねば。");
+                }
+                return;
+            }
+
+            if (floor == 7 && straitQuest.triggered)
+            {
+                straitQuest.completed = true;
+                Console.WriteLine("★ 危険な海峡を渡り切った！ クエスト達成！ ★");
+                // 報酬は未定（後日検討）
+            }
+        }
+
+        // 7階の冥府探訪クエストの進捗を確認する（Hero・Companionどちらがテイレシアスに隣接しても達成）
+        private void updateUnderworldQuest()
+        {
+            if (underworldQuest.completed) return;
+            if (floor != 7) return;
+
+            if (!underworldQuest.triggered)
+            {
+                underworldQuest.triggered = true;
+                Console.WriteLine("ここがキルケーの島…この先に冥府へ続く道があるという。");
+            }
+
+            Teiresias sage = entitylist.OfType<Teiresias>().FirstOrDefault();
+            if (sage == null || sage.hit <= 0) return;
+
+            bool heroAdjacent = Math.Abs(hero.xpos - sage.xpos) + Math.Abs(hero.ypos - sage.ypos) <= 1;
+            bool companionAdjacent = companions.Any(c => c.hit > 0 &&
+                Math.Abs(c.xpos - sage.xpos) + Math.Abs(c.ypos - sage.ypos) <= 1);
+
+            if (heroAdjacent || companionAdjacent)
+            {
+                underworldQuest.completed = true;
+                Console.WriteLine("★ 盲目の予言者テイレシアスと出会った！ クエスト達成！ ★");
+                hero.gold += 100;
+            }
+        }
+
         //
         // ユーザ操作から呼ばれる処理
         //
@@ -839,28 +1053,28 @@ namespace Maze
 
         public void ctrlUp()
         {
-            hero.manualmove("↑", maze, entitylist);
+            if (hero.charmed <= 0) hero.manualmove("↑", maze, entitylist);
             if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlLeft()
         {
-            hero.manualmove("←", maze, entitylist);
+            if (hero.charmed <= 0) hero.manualmove("←", maze, entitylist);
             if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlRight()
         {
-            hero.manualmove("→", maze, entitylist);
+            if (hero.charmed <= 0) hero.manualmove("→", maze, entitylist);
             if (checkAndHandleHeroFall()) return;
             tick();
         }
 
         public void ctrlDown()
         {
-            hero.manualmove("↓", maze, entitylist);
+            if (hero.charmed <= 0) hero.manualmove("↓", maze, entitylist);
             if (checkAndHandleHeroFall()) return;
             tick();
         }
@@ -1036,6 +1250,9 @@ namespace Maze
                     formatter.Serialize(stream, savedFloors);
                     formatter.Serialize(stream, gemQuest);
                     formatter.Serialize(stream, turnCounter);
+                    formatter.Serialize(stream, polyphemusQuest);
+                    formatter.Serialize(stream, straitQuest);
+                    formatter.Serialize(stream, underworldQuest);
                 }
             }
             catch (System.IO.IOException ex)
@@ -1066,13 +1283,19 @@ namespace Maze
                     // 宝石クエスト・ターンカウンター（旧セーブには存在しない場合あり）
                     try
                     {
-                        gemQuest     = (GemQuest)formatter.Deserialize(stream);
-                        turnCounter  = (int)formatter.Deserialize(stream);
+                        gemQuest         = (GemQuest)formatter.Deserialize(stream);
+                        turnCounter      = (int)formatter.Deserialize(stream);
+                        polyphemusQuest  = (PolyphemusQuest)formatter.Deserialize(stream);
+                        straitQuest      = (StraitQuest)formatter.Deserialize(stream);
+                        underworldQuest  = (UnderworldQuest)formatter.Deserialize(stream);
                     }
                     catch
                     {
-                        gemQuest    = new GemQuest();
-                        turnCounter = 0;
+                        gemQuest        = new GemQuest();
+                        turnCounter     = 0;
+                        polyphemusQuest = new PolyphemusQuest();
+                        straitQuest     = new StraitQuest();
+                        underworldQuest = new UnderworldQuest();
                     }
 
                     // companions リストを entitylist から再構築

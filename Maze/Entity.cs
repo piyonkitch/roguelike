@@ -59,6 +59,9 @@ namespace Maze
         public bool amnesia { get; set; }   // 物忘れ症
         public bool levitation { get; set; }// 浮遊
         public int frozen { get; set; }     // 凍っているターン数
+        public int charmed { get; set; }        // 魅了されている残りターン数（セイレーンの歌等）。魅了元へ強制的に近づく
+        public Entity charmSource { get; set; } // 魅了元。charmed 中はこのEntityへ向かって強制移動する
+        public int polymorphed { get; set; }    // 豚化している残りターン数（キルケーの呪い等）。近接攻撃・魔法が封じられる
         // パーティ外かつ非可視エンティティのアイテム取得メッセージを抑制するフラグ（一時的）
         [NonSerialized] internal bool suppressConsole;
         public List<Item> itemlist;         // 持ち物リスト
@@ -159,12 +162,21 @@ namespace Maze
                         //
                         // 上記以外は、生きている敵の処理
                         //
-                        // Companion は Hobbit を攻撃しない（通れないが攻撃もしない）
-                        if (this.isCompanion && e is Hobbit) return false;
+                        // Companion は Hobbit・Teiresias を攻撃しない（通れないが攻撃もしない）
+                        if (this.isCompanion && (e is Hobbit || e is Teiresias)) return false;
                         // @ と h は Dwarf を攻撃しない（通れないが攻撃もしない）
                         if ((this.graph == '@' || this.graph == 'h') && e is Dwarf) return false;
+                        // 豚化中は近接攻撃できない（通れないが攻撃もしない）
+                        if (this.polymorphed > 0) return false;
 
                         e.beat(this);                   // 攻撃していることを相手に伝える
+
+                        // 攻撃をすり抜ける相手（Shade等）には、ダメージ処理を行わず通行不可のまま終える
+                        if (e.avoidsAttack(this))
+                        {
+                            Console.WriteLine("{0} の攻撃は {1} をすり抜けた", this.name, e.name);
+                            return false;
+                        }
                         //
                         // ヒットポイントの変化、経験値の変化は、ここから下に書く
                         //
@@ -254,7 +266,23 @@ namespace Maze
         {
             if (!isLive()) return;
             if (frozen > 0) { frozen--; return; }
+            if (charmed > 0)
+            {
+                charmed--;
+                moveTowardCharmSource(maze, entitylist);
+                return;
+            }
+            if (polymorphed > 0) polymorphed--;
             doMove(maze, entitylist, target);
+        }
+
+        // 魅了状態: 魅了元（charmSource）へ強制的に1マス近づく
+        private void moveTowardCharmSource(MazeAlgo maze, List<Entity> entitylist)
+        {
+            if (charmSource == null || !charmSource.isLive()) return;
+            string path = maze.walk(xpos, ypos, charmSource.xpos, charmSource.ypos);
+            if (path == "") return;
+            manualmove(path.Substring(0, 1), maze, entitylist);
         }
 
         protected virtual void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
@@ -376,6 +404,11 @@ namespace Maze
         public virtual void beat(Entity attacker)   // attacker が殴る
         {
             ;                                       // 通常のものは殴られても何も変わらない
+        }
+
+        public virtual bool avoidsAttack(Entity attacker) // 攻撃をすり抜けるか（Shade等）
+        {
+            return false;                           // 通常のものは避けない
         }
 
         public virtual void rust()                  // 錆びさせる

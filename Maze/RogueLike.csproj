@@ -96,6 +96,14 @@
     <Compile Include="Entity.cs" />
     <Compile Include="Altar.cs" />
     <Compile Include="Gem.cs" />
+    <Compile Include="Siren.cs" />
+    <Compile Include="Polyphemus.cs" />
+    <Compile Include="CursedSailor.cs" />
+    <Compile Include="Scylla.cs" />
+    <Compile Include="MolyRoot.cs" />
+    <Compile Include="Circe.cs" />
+    <Compile Include="Shade.cs" />
+    <Compile Include="Teiresias.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>

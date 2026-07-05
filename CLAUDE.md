@@ -19,6 +19,9 @@ roguelike/
     ├── Constant.cs         # 定数 (NGRID=20, VISION_DISTANCE=4)
     ├── Companion.cs        # AI制御のコンパニオン（2体）
     ├── [敵].cs             # Acid, Bat, Dragon, Dwarf, Hobbit, Ice, Kobold, Orc
+    ├── [オデュッセイア系敵].cs # Siren, Polyphemus, CursedSailor, Scylla, Circe, Shade（5〜7階）
+    ├── Teiresias.cs        # 冥府の予言者NPC（graph='&'）。戦わないクエスト完了役
+    ├── MolyRoot.cs         # モーリュの根（graph='%'）。キルケーの豚化を無効化する所持品
     ├── [アイテム].cs       # Gold, Weapon, Armor, Potion, Scroll, Stair, StairUp, Item
     ├── StairUp.cs          # 上り階段エンティティ（graph='<'）
     ├── Gem.cs              # 宝石エンティティ（graph='*'）本物・偽物共通クラス
@@ -40,7 +43,7 @@ roguelike/
 ### マップ・視界
 - マップサイズ: 20×20
 - 視界: 半径4マス（壁による遮蔽判定あり）。**Heroの視界のみを表示**。Companion自身は常時表示されるが視界は合成しない
-- フロア数: 4階層
+- フロア数: 7階層（1〜4階は既存コンテンツ、5〜7階はオデュッセイア由来のクエスト・敵を追加。7階が最終フロアで下り階段はない）
 - 下り階段（`>`）で次の階へ。上り階段（`<`）で前の階に戻れる
 - `<` は各フロアの Hero 入口位置に固定配置される（1階には存在しない）
 - `<` で戻ると Hero は元の `>` の位置に、Companion は Hero 近くに再配置される
@@ -147,12 +150,19 @@ roguelike/
 | `[`  | Armor |
 | `!`  | Potion |
 | `?`  | Scroll |
-| `%`  | 食べ物・死体 |
+| `%`  | 食べ物・死体（7階のモーリュの根も同じ記号で偽装している） |
 | `>`  | 下り階段 |
 | `<`  | 上り階段 |
 | `*`  | 宝石（Gem）本物・偽物共通。色で種類を推測する |
 | `_`  | 祭壇（Altar）4階のみ。空=灰色、嵌め込み済=宝石色 |
-| (穴) | DarkSlateGray塗りつぶし（文字なし）|
+| `S`  | Siren（5階） |
+| `P`  | Polyphemus（5階） |
+| `C`  | CursedSailor（6階） |
+| `Y`  | Scylla（6階） |
+| `X`  | Circe（7階） |
+| `G`  | Shade（7階） |
+| `&`  | Teiresias（7階）。「唯一の高位存在」向けの記号として今後も共用予定 |
+| (穴) | DarkSlateGray塗りつぶし（文字なし）。6階のカリュブディスもこの仕組みを流用 |
 
 ### 宝石システム（Gem）
 
@@ -197,6 +207,48 @@ roguelike/
 - **Amnesia Potionを飲むと `failedAltars` がクリアされ、すべての祭壇を再試行する**
 - `failedAltars` は `[NonSerialized]`（セーブ/ロード後にリセット）
 
+### 5〜7階：オデュッセイア由来のクエスト・敵
+
+『オデュッセイア』の挿話をモチーフにした追加フロア。4階に下り階段（`>`）を1つ追加して接続している。
+
+#### 5階：一つ目の巨人ポリュペモス
+
+| 敵 | graph | HP | str | tough | 行動 |
+|---|---|---|---|---|---|
+| Siren | `S` | 4 | 1 | 0 | 複数体配置。待ち伏せ型で自分からは追跡しない。隣接するパーティメンバーには近接攻撃、そうでなければ射程5マス以内・射線が通る相手を40%の確率で`charmed`にする |
+| Polyphemus | `P` | 16 | 6 | 3 | 固定1体。Orc/Kobold型の追跡ロジック（距離6以内なら`maze.walk()`で追跡、それ以外はランダム移動） |
+
+- **クエスト「一つ目の巨人を欺け」**: 5階でPolyphemusを視認すると自動発生（`PolyphemusQuest.triggered`）。撃破で完了（討伐のみ、原典のような目つぶし搦め手は未実装）
+- **報酬**: 未定。「後続フロアで使うあると便利な特別アイテム」にする方針だけ決まっており、具体的なアイテムは未実装（`Logic.updatePolyphemusQuest()` にコメントあり）
+
+#### 6階：スキュラとカリュブディスの海峡
+
+| 敵/ギミック | graph | HP | str | tough | 行動 |
+|---|---|---|---|---|---|
+| CursedSailor（呪われた乗組員） | `C` | 3 | 2 | 0 | Orc/Kobold型の追跡雑魚。複数体配置 |
+| Scylla | `Y` | 14 | 5 | 2 | 固定1体、移動しない。隣接する最大2体を1ターンで攻撃する |
+| Charybdis（渦） | ― | ― | ― | ― | 敵Entityではなく既存の穴システム（`MazeAlgo.addPit()`）を流用した地形ギミック。踏むと即座に7階へ強制落下する |
+
+- **強制チョークポイント**（`Logic.carveStrait6()`）: 6階生成時、他の配置より先にHeroの位置を基準としてマップ中央付近に南北の壁の帯を作り、通行可能な隙間（ゲート）を2箇所だけ残す
+  - 一方のゲートにはScyllaを隣接配置、もう一方のゲートにはCharybdis（渦）を配置
+  - 下り階段は壁の帯の向こう側（Heroから見て奥側）に強制配置されるため、**ゲートのどちらかを必ず通らないと下り階段・7階へ渡れない**
+  - 地形編集には `breakWall()` ではなく副作用のない `MazeAlgo.setWall()` を使う（詳細は「既知の設計上の注意点」を参照）
+- **クエスト「危険な海峡を渡れ」**: 6階到達で自動発生（`StraitQuest.triggered`）。7階へ渡り切れば（階段経由でもCharybdis経由でも）完了
+- **報酬**: 未定（後日検討）
+
+#### 7階：キルケーの島と冥府（最終フロア）
+
+| 敵/NPC/アイテム | graph | HP | str | tough | 行動 |
+|---|---|---|---|---|---|
+| Circe | `X` | 8 | 2 | 1 | 固定1体、移動しない（Iceと同型）。隣接するパーティメンバーに30%の確率で`polymorphed`（豚化）を付与。モーリュの根を所持している相手・既に豚化中の相手には効果なし |
+| MolyRoot（モーリュの根） | `%` | 1 | ― | ― | 敵ではなくアイテム。見た目は食料と区別がつかないが、拾っても食べられることはなく、所持しているだけでキルケーの豚化を無効化する。拾うと「食べない方がよさそうだ」という警告が出る |
+| Shade（冥府の霊） | `G` | 1 | 1 | 0 | Bat型のランダム徘徊。複数体配置。`Entity.avoidsAttack()`により物理攻撃を50%の確率ですり抜ける |
+| Teiresias | `&` | 10 | 0 | 0 | 固定1体、移動せず戦わない冥府の予言者NPC。Companionからは`Hobbit`・`Dwarf`と同様に非攻撃対象として除外される |
+
+- 7階には下り階段がない（最終フロア）。小さな星石も1〜4階の宝石クエスト専用のため7階では出現しない
+- **クエスト「キルケーの呪いを越えて冥府へ」**: 7階到達で自動発生（`UnderworldQuest.triggered`）。Hero・Companionのいずれかがテイレシアスに隣接すると完了。報酬はGold+100
+- graph `&` は「唯一の高位存在」向けの記号としてTeiresiasが使用している（Nethack由来）。将来「悪しき神」「魔王」のような敵を追加する場合も同じ記号を共用する想定
+
 ### セーブ・ロード
 - `BinaryFormatter` で `roguelike.bin` に保存
 - `maze`・`floor`・`entitylist`・`savedFloors` をシリアライズ
@@ -222,3 +274,7 @@ roguelike/
 - `MazeDist.initmaze()` の末尾で、四方が壁（または盤外）に囲まれた孤立床マスを壁に変換する（1パスのみ・連鎖しない）
 - `Altar` は `tryMove()` で `_` を明示的に素通り処理（階段と同様）。`entityPriority()` でもアイテムと同扱い（優先度0）にして、生物より下に描画される
 - **`frozen` のデクリメント責任**: `Entity.move()` がテンプレートメソッドとして一元管理する（`if (!isLive()) return; if (frozen > 0) { frozen--; return; } doMove(...)`）。個々のエンティティ（Companion・敵）は `move()` を直接オーバーライドせず、`doMove()` だけを実装すればよい。例外は `Hero` で、`frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が管理するため `move()` 自体を空実装でオーバーライドしている。新規エンティティ追加時は `move()` ではなく `doMove()` を実装すること（`move()` を誤って直接オーバーライドするとこの一元管理から外れ、永久凍結バグを再発させる）
+- **`charmed`（魅了）**: `Entity.charmed`（残りターン数）と `Entity.charmSource`（魅了元）。`Entity.move()` テンプレートが `frozen` の次にチェックし、`charmed > 0` の間は `doMove()` を呼ばず `charmSource` へ向かって強制的に1マス移動する（`maze.walk()` で経路を求め `manualmove()` を呼ぶ）。Hero は `move()` をバイパスするため、`Logic.tick()` の `applyHeroCharm()` が同じロジックを担当し、`while (hero.frozen-- > 0 || applyHeroCharm())` で、Heroが魅了により行動不能な間もワールドの1ターン分の処理（`tick()` 本体）を魅了が解けるまで繰り返す。プレイヤー操作側も `ctrlUp/Down/Left/Right` で `hero.charmed <= 0` のときのみ `manualmove()` を呼ぶようガードしている（魅了中は自分で操作できない）
+- **`polymorphed`（豚化）**: `Entity.polymorphed`（残りターン数）。`frozen`・`charmed` と異なり移動そのものは妨げず、`Entity.move()` テンプレートでデクリメントした後 `doMove()` は通常どおり呼ぶ。攻撃・魔法の封じ込めは各所で個別にガードする方式: 近接攻撃は `Entity.tryMove()` の攻撃分岐で `this.polymorphed > 0` なら `return false`（通れないが攻撃もしない）、Companion の魔法発動・射線確保移動は `Companion.doMove()` 内で `polymorphed <= 0` を条件に追加している。Hero の `polymorphed` は `move()` をバイパスするため `Logic.tick()` の冒頭で毎ターンデクリメントする
+- **新規 `.cs` ファイルは `RogueLike.csproj` への追加が必須**: このプロジェクトはSDKスタイルではない旧形式のcsprojで、`<Compile Include="...">` に列挙されていないファイルはビルド対象に含まれない（コンパイルエラーにもならず「型が見つかりません」という紛らわしいエラーになる）。新規クラスファイルを追加したら必ず `RogueLike.csproj` の `<ItemGroup>` にも `<Compile Include="XXX.cs" />` を追記すること
+- **`MazeAlgo.setWall()` と `breakWall()` は別物**: `breakWall()` はDwarfの壁掘り専用で、呼ぶと `check5x5ForPit()` が走り、5x5エリアが全クリアになった際に「1階上に穴を開ける」という副作用（`pendingPits`）を発生させる。フロア生成時にマップ形状を意図的に編集したい場合（例: 6階の海峡=`Logic.carveStrait6()`で中央に壁の帯を作りゲートを開ける処理）はこの副作用のない `setWall(x, y, isWall)` を使うこと。生成時の地形編集に `breakWall()` を誤用すると、無関係なフロアに意図しない穴が発生する

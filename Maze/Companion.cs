@@ -238,8 +238,8 @@ namespace Maze
 
             if (hit * 3 > hitmax)
             {
-                // 魔法攻撃を試みる（MP > 0 のときのみ）
-                if (mp > 0)
+                // 魔法攻撃を試みる（MP > 0 かつ豚化していないときのみ）
+                if (mp > 0 && polymorphed <= 0)
                 {
                     foreach (Entity e in entitylist)
                     {
@@ -248,6 +248,7 @@ namespace Maze
                         if (e.hit <= 0) continue;
                         if (e is Hobbit) continue;  // Hobbitは攻撃しない
                         if (e is Dwarf) continue;   // Dwarfは攻撃しない
+                        if (e is Teiresias) continue; // Teiresiasは攻撃しない
 
                         foreach (MagicDir dir in MAGIC_DIRS)
                         {
@@ -261,8 +262,8 @@ namespace Maze
                     }
                 }
 
-                // 魔法のために移動して射線を確保する（MP > 0 のときのみ）
-                if (mp > 0)
+                // 魔法のために移動して射線を確保する（MP > 0 かつ豚化していないときのみ）
+                if (mp > 0 && polymorphed <= 0)
                 foreach (Entity e in entitylist)
                 {
                     if (e.isPartyMember) continue;
@@ -270,6 +271,7 @@ namespace Maze
                     if (e.hit <= 0) continue;
                     if (e is Hobbit) continue;  // Hobbitは攻撃しない
                     if (e is Dwarf) continue;   // Dwarfは攻撃しない
+                    if (e is Teiresias) continue; // Teiresiasは攻撃しない
 
                     string[] moves4 = { "←", "→", "↑", "↓" };
                     foreach (string mv in moves4)
@@ -303,6 +305,7 @@ namespace Maze
                     if (!char.IsLetter(e.graph)) continue;
                     if (e is Hobbit) continue;  // Hobbitは攻撃しない
                     if (e is Dwarf) continue;   // Dwarfは攻撃しない
+                    if (e is Teiresias) continue; // Teiresiasは攻撃しない
                     bool adjacent = (Math.Abs(e.xpos - xpos) == 1 && e.ypos == ypos) ||
                                     (e.xpos == xpos && Math.Abs(e.ypos - ypos) == 1);
                     if (!adjacent) continue;
@@ -377,8 +380,8 @@ namespace Maze
                     e.graph != '!' && e.graph != '?' &&
                     e.graph != ')' && e.graph != '[' &&
                     e.graph != '*') continue;
-                // % は HP が満タンなら不要
-                if (e.graph == '%' && hit >= hitmax) continue;
+                // % は HP が満タンなら不要（ただしモーリュの根は食料ではないので対象外）
+                if (e.graph == '%' && !(e is MolyRoot) && hit >= hitmax) continue;
                 int distToItem = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
                 if (distToItem == 0) continue;                  // すでに同じマスにいる
                 if (distToItem > ITEM_SEARCH_RANGE) continue;  // 遠すぎる
@@ -403,6 +406,7 @@ namespace Maze
                 if (e.hit <= 0) continue;
                 if (e is Hobbit) continue;  // Hobbitは敵扱いしない
                 if (e is Dwarf) continue;   // Dwarfは敵扱いしない
+                if (e is Teiresias) continue; // Teiresiasは敵扱いしない
                 int d = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
                 if (d <= Constant.VISION_DISTANCE && d < minDist) { minDist = d; nearest = e; }
             }

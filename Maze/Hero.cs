@@ -49,7 +49,7 @@ namespace Maze
             isPartyMember = true;
         }
 
-        // frozen は Logic.tick() の while (hero.frozen-- > 0) で管理するためテンプレートをバイパスする
+        // frozen・charmed・polymorphed は Logic.tick() が個別に管理するためテンプレートをバイパスする
         public override void move(MazeAlgo maze, List<Entity> entitylist, Entity target) { }
     }
 }

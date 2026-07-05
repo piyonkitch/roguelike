@@ -183,6 +183,12 @@ namespace Maze
             return grid[x, y].isWall;
         }
 
+        // 生成時のマップ編集用に直接壁フラグを設定する（5x5クリア判定などの副作用なし）
+        public override void setWall(int x, int y, bool isWall)
+        {
+            grid[x, y].isWall = isWall;
+        }
+
         // Break wall at (x, y). 5x5クリア時にpendingPitsへ通知を積む。
         public override void breakWall(int x, int y)
         {
