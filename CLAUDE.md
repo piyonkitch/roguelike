@@ -221,4 +221,4 @@ roguelike/
 - `Entity.suppressConsole`（`[NonSerialized] internal bool`）: パーティ外かつ非可視エンティティがアイテムを拾う際に `tryMove()` 内でセットし、各 `pickup()` でメッセージを抑制する。pickup 後に `false` にリセットする
 - `MazeDist.initmaze()` の末尾で、四方が壁（または盤外）に囲まれた孤立床マスを壁に変換する（1パスのみ・連鎖しない）
 - `Altar` は `tryMove()` で `_` を明示的に素通り処理（階段と同様）。`entityPriority()` でもアイテムと同扱い（優先度0）にして、生物より下に描画される
-- **`frozen` のデクリメント責任**: Hero の `frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が担う。それ以外のエンティティ（Companion・敵）は各自の `move()` 冒頭で `if (frozen > 0) { frozen--; return; }` を実装しなければならない。`manualmove()` は `frozen > 0` を動作停止の判断に使うだけでデクリメントしない設計のため、**`move()` を新規実装するクラスがデクリメントを忘れると永久凍結バグになる**。根本解決策は `Entity.move()` をテンプレートメソッド化（`doMove()` を導入）して `frozen` 処理を基底クラスに一元化することだが、現状は未対応。新規エンティティ追加時は必ずこのパターンを含めること
+- **`frozen` のデクリメント責任**: `Entity.move()` がテンプレートメソッドとして一元管理する（`if (!isLive()) return; if (frozen > 0) { frozen--; return; } doMove(...)`）。個々のエンティティ（Companion・敵）は `move()` を直接オーバーライドせず、`doMove()` だけを実装すればよい。例外は `Hero` で、`frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が管理するため `move()` 自体を空実装でオーバーライドしている。新規エンティティ追加時は `move()` ではなく `doMove()` を実装すること（`move()` を誤って直接オーバーライドするとこの一元管理から外れ、永久凍結バグを再発させる）
