@@ -117,15 +117,7 @@ namespace Maze
         {
             graph = graphOrig = '?';
 
-            int i;                      // scrolldef の番号 (パーセントから、scrolldef[] のインデックスに変換)
-            int r = rnd.Next(100);
-            if (r < 20) i = 0;
-            else if (r < 25) i = 1;
-            else if (r < 30) i = 2;
-            else if (r < 35) i = 3;
-            else if (r < 40) i = 4;
-            else if (r < 45) i = 5;
-            else i = 0;
+            int i = rnd.Next(scrolldef.Count());   // scrolldef の番号（均等に抽選）
 
             nickname = scrolldef[i].nickname;
             myuse    = scrolldef[i].myuse;

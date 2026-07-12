@@ -76,7 +76,7 @@ roguelike/
   4. **近接攻撃フォールバック**（HP > max/3）: 隣接敵を装備武器で攻撃
   5. **逃走**（HP ≤ max/3 かつ視界内に敵）: 敵から遠ざかる方向へ移動。Heroから6マス以内に留まる
   6. **アイテム探索**: 視界内・6マス以内・Heroから8マス以内のアイテムに向かう
-  7. **Hero追従**: マンハッタン距離 > 2 で `maze.walk()` で最短経路
+  7. **Hero追従**: `maze.walk()` の実経路長が `FOLLOW_DISTANCE`（2）を超えていれば最短経路で1マス移動。壁を挟むとマンハッタン距離だけでは近く見えて動かなくなるため、経路長で判定する
 - **Companion は Hobbit を一切攻撃しない**（魔法・近接・素手すべて）。`Entity.tryMove()` 内でも `isCompanion && e is Hobbit` の場合は攻撃せず通行不可とする
 - フロア移動時、CompanionはHeroの近く（距離3以内・歩行距離10ステップ以内）に再配置される
 - Companion の配置（`changePosNear`）は `maze.walk()` で到達可能性と歩行距離（`maxWalkDist=10`）を確認してから確定する。到達不能または遠すぎる位置には配置しない
@@ -107,9 +107,9 @@ roguelike/
   - 壁が崩れても視野外なら画面には反映されない（`breakWall()` は `isVisible` を変更しない）
 - **パーティと不可侵**: `@`（Hero・Companion）と `h`（Hobbit）は Dwarf を攻撃しない。Dwarf も `@` と `h` を攻撃しない
 - **近くで掘ると音**: パーティメンバーとのユークリッド距離が5以内で壁に押し当てると「がんがんがん」と出力
-- **配置**: 2階にのみ1体スポーン（`initEnemyAndThings()` でフロア2判定）
+- **配置**: `elist`（`initEnemyAndThings()`）の小文字 `d` 列で階ごとの出現数を指定（デフォルトは2階のみ1体）。`clist` の大文字 `D` は Dragon が使用済みのため、Dwarf には小文字 `d` を割り当てている
 - Companion の AI から完全に除外: 魔法攻撃・射線確保・近接攻撃・逃走判定（`getNearestEnemy()`）すべて対象外
-- **5x5壁クリアで1階に穴発生**: Dwarf が2階で壁を崩し続け、任意の5x5エリアが壁ゼロになると、その中心座標に対応する1階の床タイルが穴（`MazeDist.pits`）になる。重複トリガー防止のため `triggeredPits` HashSet で管理。穴は `MazeAlgo.takePendingPits()` → `Logic.processPendingPits()` のパイプラインで `savedFloors[1].maze` に反映される
+- **5x5壁クリアで1階上に穴発生**: Dwarf が壁を崩し続け、任意の5x5エリアが壁ゼロになると、その中心座標に対応する1階上の床タイルが穴（`MazeDist.pits`）になる。重複トリガー防止のため `triggeredPits` HashSet で管理。穴は `MazeAlgo.takePendingPits()` → `Logic.processPendingPits()` のパイプラインで `savedFloors[floor-1].maze` に反映される
 
 ### 穴タイルと落下
 - 穴は `MazeDist.pits` (HashSet<string>) で管理。`isPit(x,y)` / `addPit(x,y)` で操作
@@ -215,8 +215,8 @@ roguelike/
 
 | 敵 | graph | HP | str | tough | 行動 |
 |---|---|---|---|---|---|
-| Siren | `S` | 4 | 1 | 0 | 複数体配置。待ち伏せ型で自分からは追跡しない。隣接するパーティメンバーには近接攻撃、そうでなければ射程5マス以内・射線が通る相手を40%の確率で`charmed`にする |
-| Polyphemus | `P` | 16 | 6 | 3 | 固定1体。Orc/Kobold型の追跡ロジック（距離6以内なら`maze.walk()`で追跡、それ以外はランダム移動） |
+| Siren | `S` | 4 | 1 | 0 | `elist`の`S`列で階ごとに配置数を指定（デフォルトは5階に3体）。待ち伏せ型で自分からは追跡しない。隣接するパーティメンバーには近接攻撃、そうでなければ射程5マス以内・射線が通る相手を40%の確率で`charmed`にする |
+| Polyphemus | `P` | 16 | 6 | 3 | `elist`の`P`列で階ごとに配置数を指定（デフォルトは5階に1体）。Orc/Kobold型の追跡ロジック（距離6以内なら`maze.walk()`で追跡、それ以外はランダム移動） |
 
 - **クエスト「一つ目の巨人を欺け」**: 5階でPolyphemusを視認すると自動発生（`PolyphemusQuest.triggered`）。撃破で完了（討伐のみ、原典のような目つぶし搦め手は未実装）
 - **報酬**: 未定。「後続フロアで使うあると便利な特別アイテム」にする方針だけ決まっており、具体的なアイテムは未実装（`Logic.updatePolyphemusQuest()` にコメントあり）
@@ -225,7 +225,7 @@ roguelike/
 
 | 敵/ギミック | graph | HP | str | tough | 行動 |
 |---|---|---|---|---|---|
-| CursedSailor（呪われた乗組員） | `C` | 3 | 2 | 0 | Orc/Kobold型の追跡雑魚。複数体配置 |
+| CursedSailor（呪われた乗組員） | `C` | 3 | 2 | 0 | `elist`の`C`列で階ごとに配置数を指定（デフォルトは6階に4体）。Orc/Kobold型の追跡雑魚 |
 | Scylla | `Y` | 14 | 5 | 2 | 固定1体、移動しない。隣接する最大2体を1ターンで攻撃する |
 | Charybdis（渦） | ― | ― | ― | ― | 敵Entityではなく既存の穴システム（`MazeAlgo.addPit()`）を流用した地形ギミック。踏むと即座に7階へ強制落下する |
 
@@ -278,3 +278,4 @@ roguelike/
 - **`polymorphed`（豚化）**: `Entity.polymorphed`（残りターン数）。`frozen`・`charmed` と異なり移動そのものは妨げず、`Entity.move()` テンプレートでデクリメントした後 `doMove()` は通常どおり呼ぶ。攻撃・魔法の封じ込めは各所で個別にガードする方式: 近接攻撃は `Entity.tryMove()` の攻撃分岐で `this.polymorphed > 0` なら `return false`（通れないが攻撃もしない）、Companion の魔法発動・射線確保移動は `Companion.doMove()` 内で `polymorphed <= 0` を条件に追加している。Hero の `polymorphed` は `move()` をバイパスするため `Logic.tick()` の冒頭で毎ターンデクリメントする
 - **新規 `.cs` ファイルは `RogueLike.csproj` への追加が必須**: このプロジェクトはSDKスタイルではない旧形式のcsprojで、`<Compile Include="...">` に列挙されていないファイルはビルド対象に含まれない（コンパイルエラーにもならず「型が見つかりません」という紛らわしいエラーになる）。新規クラスファイルを追加したら必ず `RogueLike.csproj` の `<ItemGroup>` にも `<Compile Include="XXX.cs" />` を追記すること
 - **`MazeAlgo.setWall()` と `breakWall()` は別物**: `breakWall()` はDwarfの壁掘り専用で、呼ぶと `check5x5ForPit()` が走り、5x5エリアが全クリアになった際に「1階上に穴を開ける」という副作用（`pendingPits`）を発生させる。フロア生成時にマップ形状を意図的に編集したい場合（例: 6階の海峡=`Logic.carveStrait6()`で中央に壁の帯を作りゲートを開ける処理）はこの副作用のない `setWall(x, y, isWall)` を使うこと。生成時の地形編集に `breakWall()` を誤用すると、無関係なフロアに意図しない穴が発生する
+- **`clist`/`elist` によるフロア別配置数の指定**: `Logic.initEnemyAndThings()` の `clist` はA-Z・a-zの全52文字＋記号6種（58文字）を定義済みで、`elist` は各フロアにつき58桁の数字列（`clist` と同じ位置の文字に対応する出現数）。新しい敵を任意のフロアに配置可能にしたい場合は、`clist` 内の未使用文字（`initEnemyAndThings()` 内で `clist.IndexOf()` により実際に参照されている文字と重複しないもの）を選び、`elist` の該当桁を設定してパースループを追加する。**`clist` の文字は各敵の表示グラフ（`graph`）とは無関係な内部インデックス**であり、大文字・小文字も区別されるので、表示グラフと同じ文字を使いたい場合は大文字・小文字どちらかが既存の敵と衝突していないか確認すること（例: Dwarf の表示グラフは小文字 `d` で、大文字 `D` は既に Dragon が使用しているが、小文字 `d` は空いていたためそのまま `clist` 側の索引にも使っている）

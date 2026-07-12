@@ -314,7 +314,7 @@ namespace Maze
             {
                 int cx = pit[0], cy = pit[1];
                 savedFloors[upperFloor].maze.addPit(cx, cy);
-                Console.WriteLine("2階の崩落が1階に穴を開けた！ ({0},{1})", cx, cy);
+                Console.WriteLine("{0}階の崩落が{1}階に穴を開けた！ ({2},{3})", floor, upperFloor, cx, cy);
             }
         }
 
@@ -432,15 +432,15 @@ namespace Maze
             // 反対側（下り階段）へ渡れないようにする。他の配置より先に地形を確定させる
             if (floor == 6) carveStrait6();
 
-            string   clist =     "ABCDEFGHIJKLMNOPQRSTUVWXYZ$[)!?>";
+            string   clist =     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$[)!?>";
             string[] elist = {
-                                 "03000000004000000000000000522941",
-                                 "00000002204000200000000000522341",
-                                 "00000002400000600000000000522341",
-                                 "00060000000000200000000000522341",
-                                 "00000000003000300000000000522341",
-                                 "00000000000000000000000000522340",
-                                 "00000000000000000000000000522340",
+                                 "0300000000400000000000000000000000000000000000000000522941",
+                                 "0000000220400020000000000000010000000000000000000000522341",
+                                 "0000000240000060000000000000000000000000000000000000522341",
+                                 "0006000000000020000000000000000000000000000000000000522341",
+                                 "0000000000300031003000000000000000000000000000000000522341",
+                                 "0040000000000000000000000000000000000000000000000000522340",
+                                 "0000000000000000000000000000000000000000000000000000522340",
                              };
             // AcidBlob
             for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("A"), 1)); i++)
@@ -529,33 +529,29 @@ namespace Maze
                 System.Threading.Thread.Sleep(20);
             }
 
-            // Dwarf: 2階にのみ1体配置
-            if (floor == 2)
+            // Dwarf（elist の d 列。大文字 D は Dragon が使用済みのため小文字 d を割り当てている）
+            for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("d"), 1)); i++)
             {
                 entitylist.Add(new Dwarf(maze));
                 System.Threading.Thread.Sleep(20);
             }
-
-            // Siren・Polyphemus: 5階にのみ配置
-            if (floor == 5)
+            // Siren
+            for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("S"), 1)); i++)
             {
-                for (int i = 0; i < 3; i++)
-                {
-                    entitylist.Add(new Siren(maze));
-                    System.Threading.Thread.Sleep(20);
-                }
+                entitylist.Add(new Siren(maze));
+                System.Threading.Thread.Sleep(20);
+            }
+            // Polyphemus
+            for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("P"), 1)); i++)
+            {
                 entitylist.Add(new Polyphemus(maze));
                 System.Threading.Thread.Sleep(20);
             }
-
-            // 呪われた乗組員: 6階にのみ配置（Scylla・Charybdisは carveStrait6() で配置済み）
-            if (floor == 6)
+            // 呪われた乗組員（Scylla・Charybdisは6階生成時に carveStrait6() で別途配置される）
+            for (int i = 0; i < int.Parse(elist[floor - 1].Substring(clist.IndexOf("C"), 1)); i++)
             {
-                for (int i = 0; i < 4; i++)
-                {
-                    entitylist.Add(new CursedSailor(maze));
-                    System.Threading.Thread.Sleep(20);
-                }
+                entitylist.Add(new CursedSailor(maze));
+                System.Threading.Thread.Sleep(20);
             }
 
             // Circe・モーリュの根・冥府の霊・テイレシアス: 7階にのみ配置

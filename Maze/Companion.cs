@@ -350,16 +350,14 @@ namespace Maze
                 }
             }
 
-            // Hero 追従
-            int dist = Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos);
-            if (dist <= FOLLOW_DISTANCE)
+            // Hero 追従（マンハッタン距離ではなく実際の経路長で判定する。
+            // 壁を挟むとマンハッタン距離だけでは近く見えてしまい、動かなくなるバグを防ぐ）
+            string route = maze.walk(xpos, ypos, target.xpos, target.ypos);
+            if (route == "" || route.Length <= FOLLOW_DISTANCE)
             {
                 autoEquip(entitylist);
                 return;
             }
-
-            string route = maze.walk(xpos, ypos, target.xpos, target.ypos);
-            if (route == "") return;
 
             base.manualmove(route.Substring(0, 1), maze, entitylist);
             autoEquip(entitylist);
