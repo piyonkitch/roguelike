@@ -149,6 +149,14 @@ namespace Maze
                     if (maze.walk(hero.xpos, hero.ypos, e.xpos, e.ypos) == "") return false;
                 }
             }
+            // Polyphemus はクエスト撃破対象のため Hero から到達可能でなければならない
+            foreach (Entity e in entitylist)
+            {
+                if (e is Polyphemus)
+                {
+                    if (maze.walk(hero.xpos, hero.ypos, e.xpos, e.ypos) == "") return false;
+                }
+            }
             foreach (Entity e in entitylist)
             {
                 if (e.graph != ')') continue;
@@ -586,7 +594,7 @@ namespace Maze
                 } while (maze.walk(hero.xpos, hero.ypos, entitylist.Last().xpos, entitylist.Last().ypos) == "");
             }
 
-            // 宝石: フロア2-4に大きな原石（フロア1には登場しない）、小さな星石2個
+            // 宝石: フロア2-4に大きな原石（フロア1には登場しない）、小さな宝石2個
             // 4階のみ大アンバーと大アクアマリンの2個が登場する
             switch (floor)
             {
@@ -597,7 +605,7 @@ namespace Maze
                     entitylist.Add(Gem.CreateLargeAquamarine(maze));  System.Threading.Thread.Sleep(20);
                     break;
             }
-            // 小さな星石は宝石クエストの対象である1-4階にのみ配置する
+            // 小さな宝石は宝石クエストの対象である1-4階にのみ配置する
             if (floor <= 4)
             {
                 for (int i = 0; i < 2; i++)
@@ -823,6 +831,7 @@ namespace Maze
 
         public void tick()
         {
+            bool wasFrozen;
             do
             {                    // hero.frozen が > 0、または hero.charmed が > 0 なら繰り返す
                 if (hero.polymorphed > 0) hero.polymorphed--;
@@ -891,7 +900,10 @@ namespace Maze
                 }
                 // 期限切れエフェクトを削除
                 magicEffects.RemoveAll(ef => ef.expiry <= DateTime.Now);
-            } while (hero.frozen-- > 0 || applyHeroCharm());
+
+                wasFrozen = hero.frozen > 0;
+                if (wasFrozen) hero.frozen--;
+            } while (wasFrozen || applyHeroCharm());
         }
 
         // 魅了状態のHeroを魅了元へ強制的に1マス近づける。まだ魅了が残っていれば true を返す（tick()のループ継続条件）
@@ -1146,6 +1158,25 @@ namespace Maze
                 c.changePosNear(maze, hero.xpos, hero.ypos, 3);
             }
             newvision();
+        }
+
+        // DEBUG専用: オデュッセイアフロアの動作確認用（不要になったら削除可）
+        // 現在地を保存し、指定フロアへ直接ワープする
+        public void ctrlDebugWarp(int targetFloor)
+        {
+            if (targetFloor == floor) return;
+
+            saveCurrentFloor(hero.xpos, hero.ypos);
+
+            if (savedFloors.ContainsKey(targetFloor))
+            {
+                restoreFloor(targetFloor, hero.xpos, hero.ypos);
+            }
+            else
+            {
+                floor = targetFloor;
+                generateNewFloor();
+            }
         }
 
         public void ctrlUse(int index)

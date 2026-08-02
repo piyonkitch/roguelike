@@ -47,7 +47,7 @@ namespace Maze
             name = "Scylla";
             graph = graphOrig = 'Y';
             hit = hitmax = 14;
-            strength = strengthmax = 5;
+            strength = strengthmax = 7;
             toughness = 2;
         }
 

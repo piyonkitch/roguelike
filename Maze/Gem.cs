@@ -105,66 +105,66 @@ namespace Maze
 
         public static Gem CreateLargeRoseQuartz(MazeAlgo maze) =>
             new Gem(maze, GemAbility.Heal, 2,
-                "大ローズクォーツ", "大きなピンクの星石",
+                "大ローズクォーツ", "大きなピンクの宝石",
                 Color.FromArgb(255, 183, 197));
 
         public static Gem CreateSmallRoseQuartz(MazeAlgo maze) =>
             new Gem(maze, GemAbility.Heal, 1,
-                "ローズクォーツ", "ピンクの星石",
+                "ローズクォーツ", "ピンクの宝石",
                 Color.FromArgb(255, 183, 197));
 
         // 偽物：薄ピンクより赤みが強い
         public static Gem CreateRhodonite(MazeAlgo maze) =>
             new Gem(maze, GemAbility.None, 0,
-                "ロードナイト", "ピンクの星石",
+                "ロードナイト", "ピンクの宝石",
                 Color.FromArgb(188, 100, 120));
 
         public static Gem CreateLargeSapphire(MazeAlgo maze) =>
             new Gem(maze, GemAbility.Barrier, 2,
-                "大サファイア", "大きな青い星石",
+                "大サファイア", "大きな青い宝石",
                 Color.FromArgb(15, 82, 186));
 
         public static Gem CreateSmallSapphire(MazeAlgo maze) =>
             new Gem(maze, GemAbility.Barrier, 1,
-                "サファイア", "青い星石",
+                "サファイア", "青い宝石",
                 Color.FromArgb(15, 82, 186));
 
         // 偽物：青紫寄り
         public static Gem CreateIolite(MazeAlgo maze) =>
             new Gem(maze, GemAbility.None, 0,
-                "アイオライト", "青い星石",
+                "アイオライト", "青い宝石",
                 Color.FromArgb(60, 70, 170));
 
         public static Gem CreateLargeAmber(MazeAlgo maze) =>
             new Gem(maze, GemAbility.TimeStop, 2,
-                "大アンバー", "大きな琥珀色の星石",
+                "大アンバー", "大きな琥珀色の宝石",
                 Color.FromArgb(255, 191, 0));
 
         public static Gem CreateSmallAmber(MazeAlgo maze) =>
             new Gem(maze, GemAbility.TimeStop, 1,
-                "アンバー", "琥珀色の星石",
+                "アンバー", "琥珀色の宝石",
                 Color.FromArgb(255, 191, 0));
 
         // 偽物：より黄金色
         public static Gem CreateCitrine(MazeAlgo maze) =>
             new Gem(maze, GemAbility.None, 0,
-                "シトリン", "琥珀色の星石",
+                "シトリン", "琥珀色の宝石",
                 Color.FromArgb(240, 215, 45));
 
         public static Gem CreateLargeAquamarine(MazeAlgo maze) =>
             new Gem(maze, GemAbility.CritBoost, 2,
-                "大アクアマリン", "大きな水色の星石",
+                "大アクアマリン", "大きな水色の宝石",
                 Color.FromArgb(127, 255, 212));
 
         public static Gem CreateSmallAquamarine(MazeAlgo maze) =>
             new Gem(maze, GemAbility.CritBoost, 1,
-                "アクアマリン", "水色の星石",
+                "アクアマリン", "水色の宝石",
                 Color.FromArgb(127, 255, 212));
 
         // 偽物：空色（やや青寄り）
         public static Gem CreateBlueTopaz(MazeAlgo maze) =>
             new Gem(maze, GemAbility.None, 0,
-                "ブルートパーズ", "水色の星石",
+                "ブルートパーズ", "水色の宝石",
                 Color.FromArgb(95, 195, 240));
     }
 }

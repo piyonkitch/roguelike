@@ -162,8 +162,10 @@ namespace Maze
                         //
                         // 上記以外は、生きている敵の処理
                         //
-                        // Companion は Hobbit・Teiresias を攻撃しない（通れないが攻撃もしない）
-                        if (this.isCompanion && (e is Hobbit || e is Teiresias)) return false;
+                        // Companion は Hobbit を攻撃しない（通れないが攻撃もしない）
+                        if (this.isCompanion && e is Hobbit) return false;
+                        // Teiresias は誰からも攻撃されない（戦わない冥府の予言者NPCのため）
+                        if (e is Teiresias) return false;
                         // @ と h は Dwarf を攻撃しない（通れないが攻撃もしない）
                         if ((this.graph == '@' || this.graph == 'h') && e is Dwarf) return false;
                         // 豚化中は近接攻撃できない（通れないが攻撃もしない）
@@ -180,8 +182,8 @@ namespace Maze
                         //
                         // ヒットポイントの変化、経験値の変化は、ここから下に書く
                         //
-                        // 自分の強さ - 相手の耐久性 - サファイア結界
-                        int naturalDiff = this.getStrength() - e.getToughness();
+                        // 自分の強さ - 相手の耐久性 - サファイア結界（±1のランダム性を持たせる）
+                        int naturalDiff = this.getStrength() - e.getToughness() + rnd.Next(-1, 2);
                         int barrier     = e.getGemBarrier();
                         int critChance  = this.getGemCritChance();
                         bool isCrit     = critChance > 0 && rnd.Next(100) < critChance;

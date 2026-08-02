@@ -57,6 +57,24 @@ namespace Maze
             Console.SetOut(new TextBoxWriter(textBoxConsole));
             logic.init();
 
+            // ---- DEBUG: オデュッセイフロア確認用ワープボタン（削除可）----
+            int[] debugFloors = { 5, 6, 7 };
+            for (int i = 0; i < debugFloors.Length; i++)
+            {
+                int targetFloor = debugFloors[i];
+                Button debugButton = new Button();
+                debugButton.Text = targetFloor + "F";
+                debugButton.Location = new Point(375 + i * 65, 130);
+                debugButton.Size = new Size(60, 23);
+                debugButton.Click += (s, ev) =>
+                {
+                    logic.ctrlDebugWarp(targetFloor);
+                    afterAction();
+                };
+                this.Controls.Add(debugButton);
+            }
+            // ---- DEBUG ここまで ----
+
             magicTimer = new System.Windows.Forms.Timer();
             magicTimer.Interval = 1000;
             magicTimer.Tick += (s, ev) =>
