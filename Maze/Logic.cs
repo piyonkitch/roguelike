@@ -91,6 +91,25 @@ namespace Maze
         public bool completed;
     }
 
+    // セーブデータ一式。1回の Serialize でまとめて書き出すことで、現フロアと savedFloors の
+    // entitylist に共通で入っている Hero・Companion の参照が共有されたまま保存される
+    // （別々に Serialize すると、ロード後に他フロアのリストの Hero・Companion が別物のコピーになる）
+    [Serializable]
+    class SaveData
+    {
+        public MazeAlgo maze;
+        public int floor;
+        public Entity hero;
+        public List<Entity> companions;     // 別フロアに落下中の Companion は entitylist にいないため別に保存する
+        public List<Entity> entitylist;
+        public Dictionary<int, FloorState> savedFloors;
+        public GemQuest gemQuest;
+        public int turnCounter;
+        public PolyphemusQuest polyphemusQuest;
+        public StraitQuest straitQuest;
+        public UnderworldQuest underworldQuest;
+    }
+
     class Logic
     {
         public List<MagicEffect> magicEffects = new List<MagicEffect>();
@@ -110,7 +129,7 @@ namespace Maze
         public UnderworldQuest underworldQuest = new UnderworldQuest();
         private int turnCounter;
 
-        // Hero から到達可能なマス数を BFS で数える
+        // Hero から到達可能なマス数を BFS(幅優先サーチ) で数える
         private int countReachableCells(int startX, int startY)
         {
             bool[,] visited = new bool[Constant.NGRID, Constant.NGRID];
@@ -141,6 +160,8 @@ namespace Maze
         private bool isMazeAcceptable()
         {
             if (countReachableCells(hero.xpos, hero.ypos) < 80) return false;
+            // 6階は海峡の両ゲートが通れ、奥側に下り階段が置けていること
+            if (floor == 6 && !strait6Valid) return false;
             // 大きな原石は Hero から到達可能でなければならない
             foreach (Entity e in entitylist)
             {
@@ -197,10 +218,10 @@ namespace Maze
 
                 companions = new List<Entity>();
                 companions.Add(new Companion(maze));
-                companions[0].changePosNear(maze, hero.xpos, hero.ypos, 3);
+                placeCompanionNearHero(companions[0]);
                 System.Threading.Thread.Sleep(20);
                 companions.Add(new Companion(maze));
-                companions[1].changePosNear(maze, hero.xpos, hero.ypos, 3);
+                placeCompanionNearHero(companions[1]);
                 System.Threading.Thread.Sleep(20);
                 foreach (Entity c in companions) entitylist.Add(c);
 
@@ -235,11 +256,12 @@ namespace Maze
             entitylist = saved.entitylist;
             hero.xpos  = heroX;
             hero.ypos  = heroY;
+            ensurePartyInEntitylist();
             reactivateCompanionsOnCurrentFloor();
             foreach (Entity c in companions)
             {
                 if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
-                c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                placeCompanionNearHero(c);
             }
             newvision();
         }
@@ -274,7 +296,7 @@ namespace Maze
                 {
                     if (c is Companion comp && comp.isInactive) continue; // 別フロアは追加しない
                     entitylist.Add(c);
-                    c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                    placeCompanionNearHero(c);
                 }
 
                 initEnemyAndThings();
@@ -300,7 +322,7 @@ namespace Maze
                 if (!(c is Companion fallen) || !fallen.isInactive) continue;
                 if (entitylist.Contains(fallen)) continue;
                 fallen.isInactive = false;
-                fallen.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                placeCompanionNearHero(fallen);
                 entitylist.Add(fallen);
             }
         }
@@ -350,11 +372,12 @@ namespace Maze
                 entitylist = saved.entitylist;
                 hero.xpos  = pitX;
                 hero.ypos  = pitY;
+                ensurePartyInEntitylist();
                 reactivateCompanionsOnCurrentFloor();
                 foreach (Entity c in companions)
                 {
                     if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
-                    c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                    placeCompanionNearHero(c);
                 }
                 newvision();
             }
@@ -438,7 +461,21 @@ namespace Maze
         {
             // 6階は中央に壁の帯を作り、Scylla側かCharybdis側のどちらかを必ず通らないと
             // 反対側（下り階段）へ渡れないようにする。他の配置より先に地形を確定させる
-            if (floor == 6) carveStrait6();
+            if (floor == 6)
+            {
+                carveStrait6();
+                // 海峡が不良なら作り直しになるので、残りの配置（Thread.Sleep を伴う）を省いて早めに抜ける
+                if (!strait6Valid) return;
+
+                // Companion は海峡を作る前に配置されているため、壁の帯に埋まったり、渦の上や向こう側に
+                // 置かれていることがある。渦も Scylla も通らずに Hero のもとへ行ける位置に置き直す
+                foreach (Entity c in companions)
+                {
+                    if (c is Companion comp && comp.isInactive) continue;
+                    if (!isReachableAvoidingPits(c.xpos, c.ypos, hero.xpos, hero.ypos, true))
+                        placeCompanionNearHero(c);
+                }
+            }
 
             string   clist =     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$[)!?>";
             string[] elist = {
@@ -622,7 +659,7 @@ namespace Maze
         // 4階の四方向の端に祭壇を配置する
         private void placeAltars()
         {
-            // BFS で Hero から到達可能な全マスを収集
+            // BFS(幅優先サーチ) で Hero から到達可能な全マスを収集
             bool[,] visited = new bool[Constant.NGRID, Constant.NGRID];
             List<int[]> bfsQueue = new List<int[]> { new int[] { hero.xpos, hero.ypos } };
             visited[hero.xpos, hero.ypos] = true;
@@ -670,8 +707,12 @@ namespace Maze
         // 一方にはScyllaを配置し、もう一方にはCharybdis（渦=既存の穴システム）を仕込む。
         // 下り階段はHeroから見て奥側（壁の帯の向こう）に強制配置するため、
         // どちらかのゲートを通らなければ先に進めない。
+        // carveStrait6() の結果が「両方のゲートが通れる海峡」になっているか（isMazeAcceptable() で参照）
+        private bool strait6Valid;
+
         private void carveStrait6()
         {
+            strait6Valid = false;
             int column = (hero.xpos < Constant.NGRID / 2) ? Constant.NGRID / 2 : Constant.NGRID / 2 - 1;
             for (int y = 0; y < Constant.NGRID; y++)
                 maze.setWall(column, y, true);
@@ -682,12 +723,16 @@ namespace Maze
             int charybdisGateY;
             do { charybdisGateY = rnd.Next(1, Constant.NGRID - 1); } while (Math.Abs(charybdisGateY - scyllaGateY) < 4);
 
-            maze.setWall(column, scyllaGateY,     false);
-            maze.setWall(column, charybdisGateY,  false);
+            // ゲートは帯のマスと、その左右のマスも床にして3マスの通り道にする
+            // （左右が元の迷路の壁のままだと、手前側から入れない「飾りのゲート」になってしまう）
+            foreach (int gy in new[] { scyllaGateY, charybdisGateY })
+                for (int dx = -1; dx <= 1; dx++)
+                    maze.setWall(column + dx, gy, false);
 
             int farSide  = (hero.xpos < column) ? 1 : -1; // Heroから見て下り階段側の方向
-            int scyllaX  = column + farSide;
-            maze.setWall(scyllaX, scyllaGateY, false);
+            int nearX    = column - farSide;              // ゲートの手前側（Hero側）の列
+            int farX     = column + farSide;              // ゲートの向こう側の列
+            int scyllaX  = farX;
 
             Scylla scylla = new Scylla(maze);
             scylla.xpos = scyllaX;
@@ -696,18 +741,69 @@ namespace Maze
 
             maze.addPit(column, charybdisGateY); // 踏むと即座に7階へ落下する
 
-            // 下り階段を奥側に強制配置する
-            int sx, sy;
-            do
-            {
-                sx = (farSide > 0) ? rnd.Next(column + 1, Constant.NGRID) : rnd.Next(0, column);
-                sy = rnd.Next(Constant.NGRID);
-            } while (maze.isWall(sx, sy) || maze.walk(hero.xpos, hero.ypos, sx, sy) == "");
+            // Hero から両方のゲートの手前まで、穴を踏まずに行けること
+            if (!isReachableAvoidingPits(hero.xpos, hero.ypos, nearX, scyllaGateY)) return;
+            if (!isReachableAvoidingPits(hero.xpos, hero.ypos, nearX, charybdisGateY)) return;
 
-            Stair stair = new Stair(maze);
-            stair.xpos = sx;
-            stair.ypos = sy;
-            entitylist.Add(stair);
+            // 下り階段を奥側に強制配置する。どちらのゲートの向こう側からも（穴を踏まずに）行ける場所を選ぶ。
+            // 見つからなければ配置せずに終え、isMazeAcceptable() で作り直させる（無限ループで固まるのを防ぐ）
+            for (int attempt = 0; attempt < 400; attempt++)
+            {
+                int sx = (farSide > 0) ? rnd.Next(column + 1, Constant.NGRID) : rnd.Next(0, column);
+                int sy = rnd.Next(Constant.NGRID);
+                if (maze.isWall(sx, sy) || maze.isPit(sx, sy)) continue;
+                if (!isReachableAvoidingPits(farX, scyllaGateY, sx, sy)) continue;
+                if (!isReachableAvoidingPits(farX, charybdisGateY, sx, sy)) continue;
+
+                Stair stair = new Stair(maze);
+                stair.xpos = sx;
+                stair.ypos = sy;
+                entitylist.Add(stair);
+                strait6Valid = true;
+                return;
+            }
+        }
+
+        // Companion を Hero の近くに置く。穴も敵のいるマス（6階の Scylla 等）も通らずに
+        // Hero のもとへ歩いて行ける位置を選ぶ（見つからなければ最後の候補のまま）
+        private void placeCompanionNearHero(Entity c)
+        {
+            for (int tries = 0; tries < 50; tries++)
+            {
+                c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                if (isReachableAvoidingPits(c.xpos, c.ypos, hero.xpos, hero.ypos, true)) return;
+            }
+        }
+
+        // 壁と穴を通らずに (fromX,fromY) から (toX,toY) へ行けるかを BFS(幅優先サーチ) で調べる
+        // （maze.walk() は穴を床として扱うため、海峡のゲート判定には使えない）
+        // avoidCreatures が true なら、生きている敵（パーティ以外の生き物）のいるマスも通れないものとする
+        private bool isReachableAvoidingPits(int fromX, int fromY, int toX, int toY, bool avoidCreatures = false)
+        {
+            if (maze.isWall(fromX, fromY) || maze.isPit(fromX, fromY)) return false;
+            bool[,] visited = new bool[Constant.NGRID, Constant.NGRID];
+            if (avoidCreatures && entitylist != null)
+                foreach (Entity e in entitylist)
+                    if (!e.isPartyMember && e.hit > 0 && char.IsLetter(e.graph) && !(e.xpos == fromX && e.ypos == fromY))
+                        visited[e.xpos, e.ypos] = true;
+            var queue = new Queue<int[]>();
+            queue.Enqueue(new[] { fromX, fromY });
+            visited[fromX, fromY] = true;
+            int[][] dirs = { new[] { 1, 0 }, new[] { -1, 0 }, new[] { 0, 1 }, new[] { 0, -1 } };
+            while (queue.Count > 0)
+            {
+                int[] p = queue.Dequeue();
+                if (p[0] == toX && p[1] == toY) return true;
+                foreach (int[] d in dirs)
+                {
+                    int nx = p[0] + d[0], ny = p[1] + d[1];
+                    if (nx < 0 || nx >= Constant.NGRID || ny < 0 || ny >= Constant.NGRID) continue;
+                    if (visited[nx, ny] || maze.isWall(nx, ny) || maze.isPit(nx, ny)) continue;
+                    visited[nx, ny] = true;
+                    queue.Enqueue(new[] { nx, ny });
+                }
+            }
+            return false;
         }
 
         private Gem createRandomSmallGem(MazeAlgo maze)
@@ -1043,6 +1139,9 @@ namespace Maze
             {
                 underworldQuest.completed = true;
                 Console.WriteLine("★ 盲目の予言者テイレシアスと出会った！ クエスト達成！ ★");
+                Entity visitor = heroAdjacent ? hero : companions.First(c => c.hit > 0 &&
+                    Math.Abs(c.xpos - sage.xpos) + Math.Abs(c.ypos - sage.ypos) <= 1);
+                CombatLog.Add(sage, visitor, CombatKind.Meet, 0);
                 hero.gold += 100;
             }
         }
@@ -1113,11 +1212,12 @@ namespace Maze
                     if (e.graph == '<') { hx = e.xpos; hy = e.ypos; break; }
                 hero.xpos = hx;
                 hero.ypos = hy;
+                ensurePartyInEntitylist();
                 reactivateCompanionsOnCurrentFloor();
                 foreach (Entity c in companions)
                 {
                     if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
-                    c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                    placeCompanionNearHero(c);
                 }
                 newvision();
             }
@@ -1151,11 +1251,12 @@ namespace Maze
             hero.xpos  = prev.stairX;
             hero.ypos  = prev.stairY;
 
+            ensurePartyInEntitylist();
             reactivateCompanionsOnCurrentFloor();
             foreach (Entity c in companions)
             {
                 if (c is Companion comp && comp.isInactive) continue; // 別フロアは触らない
-                c.changePosNear(maze, hero.xpos, hero.ypos, 3);
+                placeCompanionNearHero(c);
             }
             newvision();
         }
@@ -1267,19 +1368,23 @@ namespace Maze
         {
             try
             {
-                using (Stream stream = File.OpenWrite("roguelike.bin"))
+                using (Stream stream = File.Create("roguelike.bin"))
                 {
                     BinaryFormatter formatter = new BinaryFormatter();
-
-                    formatter.Serialize(stream, maze);
-                    formatter.Serialize(stream, floor);
-                    formatter.Serialize(stream, entitylist);
-                    formatter.Serialize(stream, savedFloors);
-                    formatter.Serialize(stream, gemQuest);
-                    formatter.Serialize(stream, turnCounter);
-                    formatter.Serialize(stream, polyphemusQuest);
-                    formatter.Serialize(stream, straitQuest);
-                    formatter.Serialize(stream, underworldQuest);
+                    formatter.Serialize(stream, new SaveData
+                    {
+                        maze            = maze,
+                        floor           = floor,
+                        hero            = hero,
+                        companions      = companions,
+                        entitylist      = entitylist,
+                        savedFloors     = savedFloors,
+                        gemQuest        = gemQuest,
+                        turnCounter     = turnCounter,
+                        polyphemusQuest = polyphemusQuest,
+                        straitQuest     = straitQuest,
+                        underworldQuest = underworldQuest,
+                    });
                 }
             }
             catch (System.IO.IOException ex)
@@ -1301,32 +1406,28 @@ namespace Maze
                 {
                     BinaryFormatter formatter = new BinaryFormatter();
 
-                    maze = (MazeDist)formatter.Deserialize(stream);
-                    floor = (int)formatter.Deserialize(stream);
-                    entitylist = (List<Entity>)formatter.Deserialize(stream);
-                    hero = entitylist[0];
-                    savedFloors = (Dictionary<int, FloorState>)formatter.Deserialize(stream);
-
-                    // 宝石クエスト・ターンカウンター（旧セーブには存在しない場合あり）
-                    try
+                    object first = formatter.Deserialize(stream);
+                    if (first is SaveData sd)
                     {
-                        gemQuest         = (GemQuest)formatter.Deserialize(stream);
-                        turnCounter      = (int)formatter.Deserialize(stream);
-                        polyphemusQuest  = (PolyphemusQuest)formatter.Deserialize(stream);
-                        straitQuest      = (StraitQuest)formatter.Deserialize(stream);
-                        underworldQuest  = (UnderworldQuest)formatter.Deserialize(stream);
+                        maze            = sd.maze;
+                        floor           = sd.floor;
+                        hero            = sd.hero;
+                        companions      = sd.companions;
+                        entitylist      = sd.entitylist;
+                        savedFloors     = sd.savedFloors;
+                        gemQuest        = sd.gemQuest;
+                        turnCounter     = sd.turnCounter;
+                        polyphemusQuest = sd.polyphemusQuest;
+                        straitQuest     = sd.straitQuest;
+                        underworldQuest = sd.underworldQuest;
                     }
-                    catch
+                    else
                     {
-                        gemQuest        = new GemQuest();
-                        turnCounter     = 0;
-                        polyphemusQuest = new PolyphemusQuest();
-                        straitQuest     = new StraitQuest();
-                        underworldQuest = new UnderworldQuest();
+                        loadOldFormat((MazeDist)first, formatter, stream);
                     }
 
-                    // companions リストを entitylist から再構築
-                    companions = entitylist.Where(e => e.isCompanion).ToList();
+                    // 他フロアのリストに残った Hero・Companion のコピー（旧形式のセーブで発生）を取り除く
+                    removeStalePartyCopies();
 
                     // Companion の非シリアライズフィールドを再初期化
                     foreach (Entity c in companions)
@@ -1355,6 +1456,60 @@ namespace Maze
             {
                 Console.WriteLine("セーブデータの形式が古いため読み込めません（新規ゲームを開始してください）");
                 Console.WriteLine(ex.Message);
+            }
+        }
+
+        // 旧形式のセーブ（各データを別々に Serialize していた）の残りを読み込む
+        private void loadOldFormat(MazeDist loadedMaze, BinaryFormatter formatter, Stream stream)
+        {
+            maze = loadedMaze;
+            floor = (int)formatter.Deserialize(stream);
+            entitylist = (List<Entity>)formatter.Deserialize(stream);
+            hero = entitylist[0];
+            savedFloors = (Dictionary<int, FloorState>)formatter.Deserialize(stream);
+
+            // 宝石クエスト・ターンカウンター（旧セーブには存在しない場合あり）
+            try
+            {
+                gemQuest         = (GemQuest)formatter.Deserialize(stream);
+                turnCounter      = (int)formatter.Deserialize(stream);
+                polyphemusQuest  = (PolyphemusQuest)formatter.Deserialize(stream);
+                straitQuest      = (StraitQuest)formatter.Deserialize(stream);
+                underworldQuest  = (UnderworldQuest)formatter.Deserialize(stream);
+            }
+            catch
+            {
+                gemQuest        = new GemQuest();
+                turnCounter     = 0;
+                polyphemusQuest = new PolyphemusQuest();
+                straitQuest     = new StraitQuest();
+                underworldQuest = new UnderworldQuest();
+            }
+
+            // companions リストを entitylist から再構築。
+            // 別フロアに落下中の Companion は現フロアにいないので、他フロアのリストから拾う
+            companions = entitylist.Where(e => e.isCompanion).ToList();
+            foreach (FloorState fs in savedFloors.Values)
+                foreach (Entity e in fs.entitylist)
+                    if (e is Companion fallen && fallen.isInactive && !companions.Contains(fallen) && companions.Count < 2)
+                        companions.Add(fallen);
+        }
+
+        // 他フロアのリストに入っている「本物ではない」Hero・Companion（旧形式のセーブで生じたコピー）を取り除く
+        private void removeStalePartyCopies()
+        {
+            foreach (FloorState fs in savedFloors.Values)
+                fs.entitylist.RemoveAll(e => e.isPartyMember && e != hero && !companions.Contains(e));
+        }
+
+        // 保存済みフロアへ戻ったとき、本物の Hero と行動中の Companion が entitylist にいることを保証する
+        private void ensurePartyInEntitylist()
+        {
+            if (!entitylist.Contains(hero)) entitylist.Insert(0, hero);
+            foreach (Entity c in companions)
+            {
+                if (c is Companion comp && comp.isInactive) continue;
+                if (!entitylist.Contains(c)) entitylist.Add(c);
             }
         }
 

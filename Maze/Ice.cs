@@ -66,6 +66,7 @@ namespace Maze
             {
                 target.frozen += rnd.Next(4) + 4;
                 Console.WriteLine("氷った");
+                CombatLog.Add(this, target, CombatKind.Freeze, 0);
             }
         }
 

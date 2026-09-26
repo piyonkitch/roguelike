@@ -50,6 +50,11 @@ namespace Maze
 
         private System.Windows.Forms.Timer magicTimer;
 
+        // 戦闘ビュー（画面左）
+        const int BattleWidth = 360;
+        private PictureBox battlePic;
+        private BattleView battleView;
+
         // エントリーポイント
         public RogueLike()
         {
@@ -74,6 +79,19 @@ namespace Maze
                 this.Controls.Add(debugButton);
             }
             // ---- DEBUG ここまで ----
+
+            // 戦闘ビューを画面左に追加し、既存のコントロールを右へずらす
+            int shift = BattleWidth + 12;
+            foreach (Control c in this.Controls)
+                if (!(c is MenuStrip)) c.Left += shift;
+            this.ClientSize = new Size(this.ClientSize.Width + shift, this.ClientSize.Height);
+            battlePic = new PictureBox();
+            battlePic.Location = new Point(12, 25);
+            battlePic.Size = new Size(BattleWidth, 340);
+            battlePic.BackColor = Color.Black;
+            this.Controls.Add(battlePic);
+            battleView = new BattleView(battlePic, logic);
+            battleView.Play(new List<CombatEvent>());
 
             magicTimer = new System.Windows.Forms.Timer();
             magicTimer.Interval = 1000;
@@ -229,6 +247,8 @@ namespace Maze
 
         private void afterAction()
         {
+            // show() はゲームオーバー時にダイアログを出すので、先に戦闘アニメを開始しておく
+            battleView.Play(CombatLog.Drain());
             show();
             if (logic.magicEffects.Count > 0)
             {

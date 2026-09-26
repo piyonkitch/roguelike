@@ -75,7 +75,7 @@ namespace Maze
                 return false;
             }
             num--;
-            Console.WriteLine("{0} は {1} を捨てた", user, name);
+            Console.WriteLine("{0} は {1} を捨てた", user.name, name);
             return true;
         }
 
@@ -87,8 +87,8 @@ namespace Maze
                 Console.WriteLine("これは、使うものではないな");
                 return;
             }
+            Console.WriteLine("{0} は {1} を使った", user.name, name);
             entity.use(user);
-            Console.WriteLine("{0} を使った", name);
             num--;
         }
 

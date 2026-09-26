@@ -84,6 +84,7 @@ namespace Maze
                     e.charmed = rnd.Next(3) + 3; // 3〜5ターン
                     e.charmSource = this;
                     Console.WriteLine("セイレーンの歌が {0} を魅了した！", e.name);
+                    CombatLog.Add(this, e, CombatKind.Charm, 0);
                 }
                 return; // 1ターンに1体だけ狙う
             }

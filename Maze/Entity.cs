@@ -109,7 +109,7 @@ namespace Maze
                 ypos = rnd.Next(Math.Max(0, cy - maxDist), Math.Min(Constant.NGRID, cy + maxDist + 1));
                 tries++;
                 if (tries > 200) { changePos(maze); return; }  // 見つからなければランダム配置
-                if (maze.isWall(xpos, ypos) || (xpos == cx && ypos == cy)) continue;
+                if (maze.isWall(xpos, ypos) || maze.isPit(xpos, ypos) || (xpos == cx && ypos == cy)) continue;
                 string wk = maze.walk(xpos, ypos, cx, cy);
                 if (wk != "" && wk.Length <= maxWalkDist) return;
             }
@@ -170,6 +170,8 @@ namespace Maze
                         if ((this.graph == '@' || this.graph == 'h') && e is Dwarf) return false;
                         // 豚化中は近接攻撃できない（通れないが攻撃もしない）
                         if (this.polymorphed > 0) return false;
+                        // 魅了中は魅了元へ引き寄せられるだけで攻撃できない（通れないが攻撃もしない）
+                        if (this.charmed > 0) return false;
 
                         e.beat(this);                   // 攻撃していることを相手に伝える
 
@@ -177,6 +179,7 @@ namespace Maze
                         if (e.avoidsAttack(this))
                         {
                             Console.WriteLine("{0} の攻撃は {1} をすり抜けた", this.name, e.name);
+                            CombatLog.Add(this, e, CombatKind.Pass, 0);
                             return false;
                         }
                         //
@@ -197,6 +200,7 @@ namespace Maze
                         if (diff > 0)
                         {
                             e.hit -= diff;
+                            CombatLog.Add(this, e, isCrit ? CombatKind.Crit : CombatKind.Hit, diff);
                             if (isCrit)
                             {
                                 Console.WriteLine("クリティカルヒット！ {0} は {1} に {2} のダメージ", this.name, e.name, diff);
@@ -206,9 +210,9 @@ namespace Maze
                             {
                                 Console.WriteLine("{0} は {1} にヒット", this.name, e.name);
                             }
-                            // アンバー時間停止（30%の確率）
+                            // アンバー時間停止（30%の確率）。倒した相手には発動しない
                             int freezeTime = this.getGemFreezeTime();
-                            if (freezeTime > 0 && rnd.Next(100) < 30)
+                            if (freezeTime > 0 && e.hit > 0 && rnd.Next(100) < 30)
                             {
                                 e.frozen = Math.Max(e.frozen, freezeTime);
                                 Console.WriteLine("{0} は時間が止まった！（{1}ターン）", e.name, freezeTime);
@@ -218,11 +222,13 @@ namespace Maze
                         else if (barrier > 0 && naturalDiff > 0)
                         {
                             Console.WriteLine("{0} は {1} を攻撃したが、結界に阻まれた", this.name, e.name);
+                            CombatLog.Add(this, e, CombatKind.Barrier, 0);
                             revealGemEffect(e, Gem.GemAbility.Barrier);
                         }
                         else
                         {
                             Console.WriteLine("{0} は {1} を攻撃したが、はじき返された", this.name, e.name);
+                            CombatLog.Add(this, e, CombatKind.Miss, 0);
                         }
 
                         if (e.hit <= 0)
@@ -270,8 +276,9 @@ namespace Maze
             if (frozen > 0) { frozen--; return; }
             if (charmed > 0)
             {
-                charmed--;
+                // 移動してから減らす（移動中は charmed > 0 なので tryMove() で攻撃しない）
                 moveTowardCharmSource(maze, entitylist);
+                charmed--;
                 return;
             }
             if (polymorphed > 0) polymorphed--;

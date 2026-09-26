@@ -66,6 +66,7 @@ namespace Maze
                 {
                     e.polymorphed = rnd.Next(4) + 4; // 4〜7ターン
                     Console.WriteLine("キルケーの杖が {0} を豚に変えてしまった！", e.name);
+                    CombatLog.Add(this, e, CombatKind.Polymorph, 0);
                 }
             }
         }

@@ -60,7 +60,13 @@ namespace Maze
                 Console.WriteLine("{0} は {1} に炎を吐いた", name, target.name);
                 if (rnd.Next(100) < 50)             // 30%の確率でヒット
                 {
-                    target.hit = target.hit - (rnd.Next(2) + 2);
+                    int damage = rnd.Next(2) + 2;
+                    target.hit = target.hit - damage;
+                    CombatLog.Add(this, target, CombatKind.Breath, damage);
+                }
+                else
+                {
+                    CombatLog.Add(this, target, CombatKind.Breath, 0);
                 }
                 return;
             }

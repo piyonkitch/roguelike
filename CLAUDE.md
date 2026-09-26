@@ -25,7 +25,10 @@ roguelike/
     ├── [アイテム].cs       # Gold, Weapon, Armor, Potion, Scroll, Stair, StairUp, Item
     ├── StairUp.cs          # 上り階段エンティティ（graph='<'）
     ├── Gem.cs              # 宝石エンティティ（graph='*'）本物・偽物共通クラス
-    └── Altar.cs            # 祭壇エンティティ（graph='_'）4階に4つ配置
+    ├── Altar.cs            # 祭壇エンティティ（graph='_'）4階に4つ配置
+    ├── BattleView.cs       # 戦闘ビュー（画面左）: CombatLog・タイムライン・エフェクト・背景
+    ├── StickFigure.cs      # スティックマン描画基盤（Pose・Anim・Figure・Humanoid・武器）
+    └── EnemyDesigns.cs     # 全キャラクターの戦闘ビュー用デザイン
 ```
 
 ## アーキテクチャ
@@ -51,7 +54,7 @@ roguelike/
 
 ### 迷路品質チェック
 - `init()` / `generateNewFloor()` は条件を満たすまで迷路を再生成する（`do...while` ループ）
-- 条件: Hero から BFS で到達可能なマスが **80マス以上**、かつ **到達可能な武器が1個以上**
+- 条件: Hero から BFS(幅優先サーチ) で到達可能なマスが **80マス以上**、かつ **到達可能な武器が1個以上**
 - 1階では到達可能な武器として **Sting** が存在することを必須とする
 
 ### 戦闘
@@ -80,6 +83,7 @@ roguelike/
 - **Companion は Hobbit を一切攻撃しない**（魔法・近接・素手すべて）。`Entity.tryMove()` 内でも `isCompanion && e is Hobbit` の場合は攻撃せず通行不可とする
 - フロア移動時、CompanionはHeroの近く（距離3以内・歩行距離10ステップ以内）に再配置される
 - Companion の配置（`changePosNear`）は `maze.walk()` で到達可能性と歩行距離（`maxWalkDist=10`）を確認してから確定する。到達不能または遠すぎる位置には配置しない
+- `changePosNear` は壁に加えて穴のマスも選ばない。Logic から Companion を Hero の近くに置くときは必ず `Logic.placeCompanionNearHero()` を使う。これは「穴も生きている敵のいるマス（6階の Scylla 等）も通らずに Hero のもとへ歩いて行けるか」を `isReachableAvoidingPits(..., avoidCreatures: true)` で確かめて位置を選ぶ（`maze.walk()` は穴も敵も通れるものとして扱うため、海峡の向こう側に置かれてしまう）。6階は Companion を配置した後に海峡の壁の帯を作るため、`initEnemyAndThings()` で海峡を作った直後にも同じ条件で置き直す
 
 ### Companion の魔法
 - MP初期値1、レベルアップで +1〜3 増加
@@ -189,7 +193,7 @@ roguelike/
 - **目標**: 大きな原石4種（大ローズクォーツ・大サファイア・大アンバー・大アクアマリン）を4階の祭壇4つに嵌め込む
 - **大きな原石の配置**: 1階=なし、2階=大ローズクォーツ、3階=大サファイア、4階=大アンバー+大アクアマリン（4階のみ2個）
 - **小さな原石**: 各フロアに2個のランダムな石（本物・偽物混在）が散在
-- **祭壇（Altar）**: 4階にのみ4つ配置（graph=`_`）。東南西北の端に近いマスをBFSで選択。通行可能
+- **祭壇（Altar）**: 4階にのみ4つ配置（graph=`_`）。東南西北の端に近いマスをBFS(幅優先サーチ)で選択。通行可能
   - 空き祭壇は灰色の `_`、宝石嵌め込み済みは宝石色の `_` で表示
   - 一度見たら遠ざかっても表示される（階段と同様）
   - 祭壇ごとに受け入れる宝石の季節があるが、**プレイヤーには非公開**
@@ -232,6 +236,7 @@ roguelike/
 - **強制チョークポイント**（`Logic.carveStrait6()`）: 6階生成時、他の配置より先にHeroの位置を基準としてマップ中央付近に南北の壁の帯を作り、通行可能な隙間（ゲート）を2箇所だけ残す
   - 一方のゲートにはScyllaを隣接配置、もう一方のゲートにはCharybdis（渦）を配置
   - 下り階段は壁の帯の向こう側（Heroから見て奥側）に強制配置されるため、**ゲートのどちらかを必ず通らないと下り階段・7階へ渡れない**
+  - ゲートは帯のマスとその左右のマスを床にした3マスの通り道。生成後に「Heroから両ゲートの手前へ行ける」「両ゲートの向こう側から下り階段へ行ける」を**穴を壁とみなした BFS(幅優先サーチ)**（`isReachableAvoidingPits()`）で確認し、満たさなければ `strait6Valid = false` として `isMazeAcceptable()` でマップを作り直す（`maze.walk()` は穴を床として扱うのでこの判定には使えない）。下り階段の配置は試行回数に上限があり、固まらない
   - 地形編集には `breakWall()` ではなく副作用のない `MazeAlgo.setWall()` を使う（詳細は「既知の設計上の注意点」を参照）
 - **クエスト「危険な海峡を渡れ」**: 6階到達で自動発生（`StraitQuest.triggered`）。7階へ渡り切れば（階段経由でもCharybdis経由でも）完了
 - **報酬**: 未定（後日検討）
@@ -249,10 +254,25 @@ roguelike/
 - **クエスト「キルケーの呪いを越えて冥府へ」**: 7階到達で自動発生（`UnderworldQuest.triggered`）。Hero・Companionのいずれかがテイレシアスに隣接すると完了。報酬はGold+100
 - graph `&` は「唯一の高位存在」向けの記号としてTeiresiasが使用している（Nethack由来）。将来「悪しき神」「魔王」のような敵を追加する場合も同じ記号を共用する想定
 
+### 戦闘ビュー（画面左 360x340）
+- `Form1` のコンストラクタで `battlePic` を画面左に追加し、Designer 上の既存コントロールは実行時に X を +372 ずらしている（Designer ファイル自体は変更していない）
+- 戦闘の記録: `CombatLog.Add(attacker, defender, CombatKind, damage)`（静的・セーブ対象外）。`Entity.tryMove()` の攻撃分岐、`Companion.castMagic()`、Dragon（炎）、Ice（凍結）、Siren（魅了）、Circe（豚化）、`Logic.updateUnderworldQuest()`（テイレシアスとの対面）から呼ぶ
+- `Form1.afterAction()` が `CombatLog.Drain()` → `BattleView.Play()` を呼ぶ。`show()` より先に呼ぶのはゲームオーバーのダイアログ中も倒れる演出を再生するため
+- `Drain()` は各 defender の最後のイベントに、その時点で `hit <= 0` なら `killed` を付ける
+- 再生: Timer 33ms で描画。1イベント 400ms（同じ相手との複数イベントは 320ms ずつ）、撃破は +300ms の倒れ込み。**入力はブロックせず、次の `Play()` で即座に場面が切り替わる**
+- 場面は「敵（非パーティ側）1体 vs パーティ」を1段として最大3段。Hero が関わる段を優先。戦闘がないときはパーティと視界内で最も近い生き物の待機姿
+- Hero の視界外（攻撃者・防御者とも `isEntitySeeable()` が false で Hero も無関係）の戦闘は表示しない
+- 状態表示: 凍結=氷のブロック、魅了=頭上のハート、豚化=豚の頭。Hero の frozen/charmed は `tick()` のループ内で解けてしまうため、イベント由来でも表示する
+- **新しい敵を追加したら `EnemyDesigns.Create()` にデザインを追加すること**（未登録は `GenericFig`＝頭に graph 文字の灰色スティックマンで表示される）。新しい攻撃手段を追加したら `CombatKind` を追加し、`BattleView.DrawEffect()`・`TextFor()` に演出を足す
+- 描画座標系: 足元中心が原点・右向き・Hero の身長 100。左向きは `ScaleTransform(-1, 1)` で反転するので、文字は `Figure.Text()`（反転補正あり）で描く
+
 ### セーブ・ロード
 - `BinaryFormatter` で `roguelike.bin` に保存
-- `maze`・`floor`・`entitylist`・`savedFloors` をシリアライズ
-- ロード後は `entitylist` から `isCompanion` フラグで `companions` リストを再構築し、`ensureTransients()` で非シリアライズフィールドを再初期化、`newvision()` で視界を更新する
+- 保存するもの一式を `SaveData`（Logic.cs）にまとめ、**1回の `Serialize` で書き出す**。Hero・Companion は現フロアと `savedFloors` の各 `entitylist` に同じ参照で入っているため、別々に `Serialize` するとロード後に他フロアのリストの Hero・Companion が別物のコピーになる（本物の Hero がマップに出ず、敵からも攻撃されなくなる不具合の原因だった）
+- `SaveData` には `hero` と `companions` も入れる（別フロアに落下中の Companion は `entitylist` にいないため）
+- 旧形式（各データを別々に `Serialize`）のセーブも読める（`loadOldFormat()`）。ロード後に `removeStalePartyCopies()` で他フロアのリストから本物でない Hero・Companion を取り除く
+- 保存済みフロアへ戻る処理（階段・落下・ワープ）は `ensurePartyInEntitylist()` で、本物の Hero と行動中の Companion が `entitylist` にいることを保証する
+- ロード後は `ensureTransients()` で非シリアライズフィールドを再初期化し、`newvision()` で視界を更新する
 
 ## 既知の設計上の注意点
 
@@ -274,7 +294,7 @@ roguelike/
 - `MazeDist.initmaze()` の末尾で、四方が壁（または盤外）に囲まれた孤立床マスを壁に変換する（1パスのみ・連鎖しない）
 - `Altar` は `tryMove()` で `_` を明示的に素通り処理（階段と同様）。`entityPriority()` でもアイテムと同扱い（優先度0）にして、生物より下に描画される
 - **`frozen` のデクリメント責任**: `Entity.move()` がテンプレートメソッドとして一元管理する（`if (!isLive()) return; if (frozen > 0) { frozen--; return; } doMove(...)`）。個々のエンティティ（Companion・敵）は `move()` を直接オーバーライドせず、`doMove()` だけを実装すればよい。例外は `Hero` で、`frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が管理するため `move()` 自体を空実装でオーバーライドしている。新規エンティティ追加時は `move()` ではなく `doMove()` を実装すること（`move()` を誤って直接オーバーライドするとこの一元管理から外れ、永久凍結バグを再発させる）
-- **`charmed`（魅了）**: `Entity.charmed`（残りターン数）と `Entity.charmSource`（魅了元）。`Entity.move()` テンプレートが `frozen` の次にチェックし、`charmed > 0` の間は `doMove()` を呼ばず `charmSource` へ向かって強制的に1マス移動する（`maze.walk()` で経路を求め `manualmove()` を呼ぶ）。Hero は `move()` をバイパスするため、`Logic.tick()` の `applyHeroCharm()` が同じロジックを担当し、`while (hero.frozen-- > 0 || applyHeroCharm())` で、Heroが魅了により行動不能な間もワールドの1ターン分の処理（`tick()` 本体）を魅了が解けるまで繰り返す。プレイヤー操作側も `ctrlUp/Down/Left/Right` で `hero.charmed <= 0` のときのみ `manualmove()` を呼ぶようガードしている（魅了中は自分で操作できない）
+- **`charmed`（魅了）**: `Entity.charmed`（残りターン数）と `Entity.charmSource`（魅了元）。`Entity.move()` テンプレートが `frozen` の次にチェックし、`charmed > 0` の間は `doMove()` を呼ばず `charmSource` へ向かって強制的に1マス移動する（`maze.walk()` で経路を求め `manualmove()` を呼ぶ）。Hero は `move()` をバイパスするため、`Logic.tick()` の `applyHeroCharm()` が同じロジックを担当し、`while (hero.frozen-- > 0 || applyHeroCharm())` で、Heroが魅了により行動不能な間もワールドの1ターン分の処理（`tick()` 本体）を魅了が解けるまで繰り返す。プレイヤー操作側も `ctrlUp/Down/Left/Right` で `hero.charmed <= 0` のときのみ `manualmove()` を呼ぶようガードしている（魅了中は自分で操作できない）。**魅了中は攻撃できない**: `Entity.tryMove()` の攻撃分岐で `this.charmed > 0` なら `return false`（魅了元の隣で立ち止まるだけ。経路上の他の敵も攻撃しない）。このため `Entity.move()` と `applyHeroCharm()` はどちらも「移動してから `charmed--`」の順にしている
 - **`polymorphed`（豚化）**: `Entity.polymorphed`（残りターン数）。`frozen`・`charmed` と異なり移動そのものは妨げず、`Entity.move()` テンプレートでデクリメントした後 `doMove()` は通常どおり呼ぶ。攻撃・魔法の封じ込めは各所で個別にガードする方式: 近接攻撃は `Entity.tryMove()` の攻撃分岐で `this.polymorphed > 0` なら `return false`（通れないが攻撃もしない）、Companion の魔法発動・射線確保移動は `Companion.doMove()` 内で `polymorphed <= 0` を条件に追加している。Hero の `polymorphed` は `move()` をバイパスするため `Logic.tick()` の冒頭で毎ターンデクリメントする
 - **新規 `.cs` ファイルは `RogueLike.csproj` への追加が必須**: このプロジェクトはSDKスタイルではない旧形式のcsprojで、`<Compile Include="...">` に列挙されていないファイルはビルド対象に含まれない（コンパイルエラーにもならず「型が見つかりません」という紛らわしいエラーになる）。新規クラスファイルを追加したら必ず `RogueLike.csproj` の `<ItemGroup>` にも `<Compile Include="XXX.cs" />` を追記すること
 - **`MazeAlgo.setWall()` と `breakWall()` は別物**: `breakWall()` はDwarfの壁掘り専用で、呼ぶと `check5x5ForPit()` が走り、5x5エリアが全クリアになった際に「1階上に穴を開ける」という副作用（`pendingPits`）を発生させる。フロア生成時にマップ形状を意図的に編集したい場合（例: 6階の海峡=`Logic.carveStrait6()`で中央に壁の帯を作りゲートを開ける処理）はこの副作用のない `setWall(x, y, isWall)` を使うこと。生成時の地形編集に `breakWall()` を誤用すると、無関係なフロアに意図しない穴が発生する

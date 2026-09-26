@@ -104,6 +104,9 @@
     <Compile Include="Circe.cs" />
     <Compile Include="Shade.cs" />
     <Compile Include="Teiresias.cs" />
+    <Compile Include="BattleView.cs" />
+    <Compile Include="StickFigure.cs" />
+    <Compile Include="EnemyDesigns.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>

@@ -488,6 +488,7 @@ namespace Maze
 
                     int damage = magicRnd.Next(1, 3); // 1〜2ダメージ
                     e.hit -= damage;
+                    CombatLog.Add(this, e, CombatKind.Magic, damage);
                     Console.WriteLine("{0} は {1} に魔法で {2} のダメージを与えた", name, e.name, damage);
 
                     if (e.hit <= 0)
