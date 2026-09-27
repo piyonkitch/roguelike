@@ -61,6 +61,9 @@ namespace Maze
                 return;               // 遠いので何もしない
             }
 
+            // すでに凍っている相手は凍らせない（重ねがけすると凍結が解けず、Hero のターンが永遠に回らなくなる）
+            if (target.frozen > 0) return;
+
             // 隣にいるので、凍らせようとする
             if (rnd.Next(100) < 50)
             {

@@ -261,6 +261,8 @@ namespace Maze
                 this.suppressConsole = !this.isPartyMember && !maze.isVisible(x, y);
                 foreach (Entity e in thigsOnGrid)
                 {
+                    // 戦闘ビュー: パーティメンバーか、見えている者が拾ったとき
+                    if (e.graph != ' ' && (this.isPartyMember || !this.suppressConsole)) CombatLog.AddPickup(this, e);
                     e.pickup(this);
                     e.graph = ' ';
                 }

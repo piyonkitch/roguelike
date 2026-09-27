@@ -62,6 +62,9 @@ namespace Maze
             // set は、なし
         }
 
+        // 識別されていない時のラベル（Scroll labeled Foo の Foo）。戦闘ビューで羊皮紙に書く
+        public string label { get { return nickname.Replace("Scroll labeled ", ""); } }
+
         private Use myuse;                      // インスタンスごとの use() の実体をしまうところ
         private string nickname;                // 識別されていない時の名前
         private string realname;                // 識別済みの時の名前
@@ -144,10 +147,12 @@ namespace Maze
                 int i = rnd.Next(nonIdentified.Count());
                 nonIdentified[i].identify(user);
                 Console.WriteLine("何かがわかった気がする");
+                CombatLog.SetUseEffect(user, UseEffect.Identify, true);
             }
             else
             {
                 Console.WriteLine("損した気分がした");
+                CombatLog.SetUseEffect(user, UseEffect.Identify, false);
             }
         }
 
@@ -156,10 +161,12 @@ namespace Maze
             if (user.weapon == null)
             {
                 Console.WriteLine("損した気がする");
+                CombatLog.SetUseEffect(user, UseEffect.EnchantWeapon, false);
                 return;
             }
             user.weapon.enchant();
             Console.WriteLine("武器が青白く輝いた");
+            CombatLog.SetUseEffect(user, UseEffect.EnchantWeapon, true);
         }
 
         static public void useEnchantArmor(Entity user)
@@ -167,10 +174,12 @@ namespace Maze
             if (user.armor == null)
             {
                 Console.WriteLine("損した気がする");
+                CombatLog.SetUseEffect(user, UseEffect.EnchantArmor, false);
                 return;
             }
             user.armor.enchant();
             Console.WriteLine("鎧が青白く輝いた");
+            CombatLog.SetUseEffect(user, UseEffect.EnchantArmor, true);
         }
 
         static public void useRustProofWeapon(Entity user)
@@ -178,10 +187,12 @@ namespace Maze
             if (user.weapon == null)
             {
                 Console.WriteLine("損した気がする");
+                CombatLog.SetUseEffect(user, UseEffect.ProtectWeapon, false);
                 return;
             }
             user.weapon.protect();
             Console.WriteLine("武器が金色に輝いた");
+            CombatLog.SetUseEffect(user, UseEffect.ProtectWeapon, true);
         }
 
         static public void useRustProofArmor(Entity user)
@@ -189,16 +200,19 @@ namespace Maze
             if (user.armor == null)
             {
                 Console.WriteLine("損した気がする");
+                CombatLog.SetUseEffect(user, UseEffect.ProtectArmor, false);
                 return;
             }
             user.armor.protect();
             Console.WriteLine("鎧が金色に輝いた");
+            CombatLog.SetUseEffect(user, UseEffect.ProtectArmor, true);
         }
 
         static public void useSleep(Entity user)
         {
             user.frozen = 4 + rnd.Next(4);                  // rogue を参考に、4-8ターン寝る
             Console.WriteLine("眠たい");
+            CombatLog.SetUseEffect(user, UseEffect.Sleep, true);
         }
 
         //

@@ -75,6 +75,7 @@ namespace Maze
             hero.gold += QUEST_GOLD;
             questCompleted = true;
             Console.WriteLine("{0}：「{1}を持ってきてくれたのか！ありがとう！約束の金貨{2}枚だ」", name, QUEST_ITEM_NAME, QUEST_GOLD);
+            CombatLog.AddGive(carrier, this, stingItem.entity, QUEST_GOLD);
         }
 
         protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
@@ -107,10 +108,12 @@ namespace Maze
                     {
                         questRequested = true;
                         Console.WriteLine("{0}：「こんにちは！私は{0}です。「{1}」というダガーを探しているんだ。見つけたら持ってきてくれないか？金貨{2}枚でどうだ？」", name, QUEST_ITEM_NAME, QUEST_GOLD);
+                        CombatLog.AddTalk(this, target, string.Format("私は{0}。「{1}」というダガーを探しているんだ。持ってきてくれたら金貨{2}枚！", name, QUEST_ITEM_NAME, QUEST_GOLD));
                     }
                     else
                     {
                         Console.WriteLine("{0}：「まだ「{1}」を見つけていないのかい？」", name, QUEST_ITEM_NAME);
+                        CombatLog.AddTalk(this, target, string.Format("まだ「{0}」を見つけていないのかい？", QUEST_ITEM_NAME));
                     }
                     return;
                 }
@@ -124,6 +127,7 @@ namespace Maze
                     else if (dt.Hour < 18) message = "こんにちは";
                     else message = "こんばんは";
                     Console.WriteLine("{0}：「{1}！私は{0}です」", name, message);
+                    CombatLog.AddTalk(this, target, string.Format("{0}！私は{1}です", message, name));
                 }
                 return;
             }

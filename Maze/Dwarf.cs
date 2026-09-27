@@ -108,9 +108,13 @@ namespace Maze
             // 壁への押し当て処理
             if (maze.isWall(nx, ny))
             {
-                // パーティが近ければ音を出す
-                if (partyNearby(entitylist, 5))
+                // パーティが近ければ音を出す（戦闘ビューにも出す）
+                bool near = partyNearby(entitylist, 5);
+                if (near)
+                {
                     Console.WriteLine("がんがんがん");
+                    CombatLog.AddDig(this, DigStage.Knock);
+                }
 
                 string key = nx + "," + ny;
                 if (!digCounts.ContainsKey(key)) digCounts[key] = 0;
@@ -122,11 +126,13 @@ namespace Maze
                     maze.breakWall(nx, ny);
                     digCounts.Remove(key);
                     Console.WriteLine("Dwarf は壁を砕いた！");
+                    if (near) CombatLog.AddDig(this, DigStage.Break);
 
                     if (rnd.Next(100) < 20)
                     {
                         entitylist.Add(new Gold(maze, 0, rnd.Next(5) + 3, nx, ny));
                         Console.WriteLine("壁から金貨が現れた！");
+                        if (near) CombatLog.AddDig(this, DigStage.Gold);
                     }
                 }
                 return;

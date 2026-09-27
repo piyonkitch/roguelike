@@ -27,8 +27,10 @@ roguelike/
     ├── Gem.cs              # 宝石エンティティ（graph='*'）本物・偽物共通クラス
     ├── Altar.cs            # 祭壇エンティティ（graph='_'）4階に4つ配置
     ├── BattleView.cs       # 戦闘ビュー（画面左）: CombatLog・タイムライン・エフェクト・背景
-    ├── StickFigure.cs      # スティックマン描画基盤（Pose・Anim・Figure・Humanoid・武器）
-    └── EnemyDesigns.cs     # 全キャラクターの戦闘ビュー用デザイン
+    ├── StickFigure.cs      # スティックマン描画基盤（Pose・Anim・Figure・Humanoid・WeaponArt）
+    ├── EnemyDesigns.cs     # 全キャラクターの戦闘ビュー用デザイン
+    ├── ItemDesigns.cs      # 戦闘ビュー用の物の絵（拾えるもの・祭壇・落とし穴・カリュブディス・階段・岩の壁）
+    └── SoundFx.cs          # 効果音（プログラムで波形を合成。音源ファイルなし）
 ```
 
 ## アーキテクチャ
@@ -101,6 +103,7 @@ roguelike/
 - `)`（武器）・`[`（鎧）: 拾って自動装備。今より弱い or 同レベルなら drop
 - **名前付き武器（`engraveName` あり）**: 装備・dropせずクエストアイテムとして保持
 - 有害判定: Poison/LoseStrength/Amnesia Potion、Scroll of Sleep
+- **拾っても捨てるだけの物は探しに行かない**（`Companion.wouldDiscard()`）: 今の装備以下の武器・鎧（名前付きのクエストアイテムは除く）、識別済みで有害な Potion・Scroll。探しに行くと「拾う→すぐ捨てる→Hero について1歩離れる→また拾いに戻る」を繰り返してそばから離れなくなるため
 
 ### Dwarf
 - 文字: `d`、HP=5、strength=3、toughness=1
@@ -265,6 +268,25 @@ roguelike/
 - 状態表示: 凍結=氷のブロック、魅了=頭上のハート、豚化=豚の頭。Hero の frozen/charmed は `tick()` のループ内で解けてしまうため、イベント由来でも表示する
 - **新しい敵を追加したら `EnemyDesigns.Create()` にデザインを追加すること**（未登録は `GenericFig`＝頭に graph 文字の灰色スティックマンで表示される）。新しい攻撃手段を追加したら `CombatKind` を追加し、`BattleView.DrawEffect()`・`TextFor()` に演出を足す
 - 描画座標系: 足元中心が原点・右向き・Hero の身長 100。左向きは `ScaleTransform(-1, 1)` で反転するので、文字は `Figure.Text()`（反転補正あり）で描く
+- **戦闘以外の場面**も同じ仕組みで再生する（`CombatLog.IsCombat()` が false の種類）。記録する場所:
+  - `Pickup`（拾う・死体を食べる）: `Entity.tryMove()` の拾うループ。パーティメンバーか、見えている者のみ
+  - `Use`（Potion を飲む・Scroll を読む）: `Item.use()` が `AddUse()`、各効果の関数（`Potion.useHealing` 等・`Scroll.useIdentify` 等）が `SetUseEffect(user, 効果, 効いたか)` を書き込む。**新しい Potion・Scroll を追加したら `UseEffect` と `BattleView.DrawUse()` にも演出を足すこと**
+  - `Fall`（穴・カリュブディスに落ちる）: `Logic.heroFall()`・`companionFall()`・`entityFall()`。Hero が落ちた場面は落ちる前の階の背景で描く
+  - `Dig`（Dwarf の壁掘り）: `Dwarf` の「がんがんがん」・壁を砕く・金貨が出る（パーティが近いときのみ）
+  - `Talk`・`Give`（Hobbit のあいさつ・Bilbo の依頼、Sting を渡す）: `Hobbit`
+  - `Embed`・`GemsComplete`（祭壇への嵌め込み、4つ揃った）: `Logic.tryEmbedGem()`・`Companion.doMove()`・`Logic.updateGemQuest()`
+- **待機画面**: パーティ、向かい側に「一番近い生き物」か「一番近い見えている穴（6階はカリュブディス）」、Hero が階段の上か隣なら背景に階段、手前の地面に見えている拾えるもの・祭壇を近い順に最大4個（名前付き）
+- **階名タイトル**: 表示中の階が変わったら（階段・落下・ワープ・ロード）画面中央に階名を約1.6秒出す（ロジック側の変更は不要）
+- **物の絵**（`ItemDesigns.Create()`）: 見た目で区別できる情報は絵でも区別する。Potion は未識別名の色（`Potion.appearance`）で液体を塗り、Scroll は羊皮紙にラベル（`Scroll.label`）を書く。宝石は `DisplayColor` と大小、武器・防具は錆びを赤茶色、Sting は青白い縁取り、死体はその生き物の倒れた姿、モーリュの根は本来の姿（黒い根に乳白色の花）。**新しいアイテムを追加したら `ItemDesigns.Create()` にも絵を足すこと**（未登録は戦闘ビューに出ない）
+- 武器の絵は `WeaponArt.Draw()` に一本化しており、手に持つ武器と地面の武器で共用する（手に持つ武器の錆びも見える）
+- 手前の地面の物の名前は 9pt（左上の階名タイトルと同じ）。`LayoutFrontLabels()` が名前の幅を測り、隣と重ならないよう上下2段に振り分け、必要なら右へずらす
+
+### 効果音（SoundFx.cs）
+- 音源ファイルは使わず、すべてプログラムで波形を合成する（22050Hz・16bit・モノラル。音ごとに1回だけ作ってキャッシュ）。**常に ON**（切り替えメニューはない。ユーザー指定）
+- 鳴らす音: 武器ごとの攻撃（振る音＋当たった音）、攻撃の結果（クリティカル・はじかれた・結界・すり抜け）、武器を持たない敵の攻撃（噛みつき・炎・酸・凍結・魅了の歌・豚化・巨人の一撃・Shade）、Companion の魔法、金貨・ポーション・巻物を拾う音。それ以外の場面は無音
+- `BattleView.Play()` が場面を組み立てたあと `CollectSounds()` で（音, 時刻）を集め、`SoundFx.PlayScene()` が1ターン分を1本に混ぜて（加算＋tanh で音割れ防止）`SoundPlayer` で非同期再生する。時刻はアニメーションに合わせる（振る音＝開始から30%、当たった音＝50%、拾う音＝55%）。新しい場面の音が来たら前の音は止まる。待機画面では鳴らさない
+- 攻撃の音は `BattleView.AttackSounds()` で決める: 武器を持つ人型は `Humanoid.WeaponForSound`（武器の種類）ごと、持たない敵は種類ごと。**新しい武器・敵を追加したら `AttackSounds()` と `Sfx` にも音を足すこと**
+- `SoundFx.silentForTest` は画面を使わないテスト用プログラムでスピーカーから鳴らさないためのもので、ゲームでは常に false
 
 ### セーブ・ロード
 - `BinaryFormatter` で `roguelike.bin` に保存
@@ -294,6 +316,7 @@ roguelike/
 - `MazeDist.initmaze()` の末尾で、四方が壁（または盤外）に囲まれた孤立床マスを壁に変換する（1パスのみ・連鎖しない）
 - `Altar` は `tryMove()` で `_` を明示的に素通り処理（階段と同様）。`entityPriority()` でもアイテムと同扱い（優先度0）にして、生物より下に描画される
 - **`frozen` のデクリメント責任**: `Entity.move()` がテンプレートメソッドとして一元管理する（`if (!isLive()) return; if (frozen > 0) { frozen--; return; } doMove(...)`）。個々のエンティティ（Companion・敵）は `move()` を直接オーバーライドせず、`doMove()` だけを実装すればよい。例外は `Hero` で、`frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が管理するため `move()` 自体を空実装でオーバーライドしている。新規エンティティ追加時は `move()` ではなく `doMove()` を実装すること（`move()` を誤って直接オーバーライドするとこの一元管理から外れ、永久凍結バグを再発させる）
+- **Hero が動けない間のワールドのターン**: `Logic.tick()` は Hero が凍結・魅了で動けない間、解けるまでワールドのターンを繰り返すが、1回の呼び出しで進めるのは最大 `MaxWorldTurnsPerTick`（50）ターンまで（超えたらいったん画面に戻り、次の操作で続きを進める）。凍結を**加算**する処理があると、解けるより速く凍結が増えてループが終わらずゲームが固まる（Ice Jerry の `frozen += 4〜7` で実際に起きた）。凍結させる処理を足すときは、すでに凍っている相手には効かないようにすること（Ice Jerry は `target.frozen > 0` なら何もしない）
 - **`charmed`（魅了）**: `Entity.charmed`（残りターン数）と `Entity.charmSource`（魅了元）。`Entity.move()` テンプレートが `frozen` の次にチェックし、`charmed > 0` の間は `doMove()` を呼ばず `charmSource` へ向かって強制的に1マス移動する（`maze.walk()` で経路を求め `manualmove()` を呼ぶ）。Hero は `move()` をバイパスするため、`Logic.tick()` の `applyHeroCharm()` が同じロジックを担当し、`while (hero.frozen-- > 0 || applyHeroCharm())` で、Heroが魅了により行動不能な間もワールドの1ターン分の処理（`tick()` 本体）を魅了が解けるまで繰り返す。プレイヤー操作側も `ctrlUp/Down/Left/Right` で `hero.charmed <= 0` のときのみ `manualmove()` を呼ぶようガードしている（魅了中は自分で操作できない）。**魅了中は攻撃できない**: `Entity.tryMove()` の攻撃分岐で `this.charmed > 0` なら `return false`（魅了元の隣で立ち止まるだけ。経路上の他の敵も攻撃しない）。このため `Entity.move()` と `applyHeroCharm()` はどちらも「移動してから `charmed--`」の順にしている
 - **`polymorphed`（豚化）**: `Entity.polymorphed`（残りターン数）。`frozen`・`charmed` と異なり移動そのものは妨げず、`Entity.move()` テンプレートでデクリメントした後 `doMove()` は通常どおり呼ぶ。攻撃・魔法の封じ込めは各所で個別にガードする方式: 近接攻撃は `Entity.tryMove()` の攻撃分岐で `this.polymorphed > 0` なら `return false`（通れないが攻撃もしない）、Companion の魔法発動・射線確保移動は `Companion.doMove()` 内で `polymorphed <= 0` を条件に追加している。Hero の `polymorphed` は `move()` をバイパスするため `Logic.tick()` の冒頭で毎ターンデクリメントする
 - **新規 `.cs` ファイルは `RogueLike.csproj` への追加が必須**: このプロジェクトはSDKスタイルではない旧形式のcsprojで、`<Compile Include="...">` に列挙されていないファイルはビルド対象に含まれない（コンパイルエラーにもならず「型が見つかりません」という紛らわしいエラーになる）。新規クラスファイルを追加したら必ず `RogueLike.csproj` の `<ItemGroup>` にも `<Compile Include="XXX.cs" />` を追記すること

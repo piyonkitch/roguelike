@@ -88,6 +88,7 @@ namespace Maze
                 return;
             }
             Console.WriteLine("{0} は {1} を使った", user.name, name);
+            CombatLog.AddUse(user, entity);     // 効果の種類は各効果の関数が SetUseEffect で書き込む
             entity.use(user);
             num--;
         }

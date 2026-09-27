@@ -352,6 +352,7 @@ namespace Maze
         public void heroFall()
         {
             int pitX = hero.xpos, pitY = hero.ypos;
+            CombatLog.AddFall(hero, floor, floor == 6);   // 6階の穴はカリュブディスの渦
 
             // 現フロアを保存（> 階段の座標を戻り先とする）
             int returnX = pitX, returnY = pitY;
@@ -393,6 +394,7 @@ namespace Maze
         {
             int pitX = comp.xpos, pitY = comp.ypos;
             Console.WriteLine("{0} は穴に落ちた！ 地下{1}階へ…", comp.name, floor + 1);
+            CombatLog.AddFall(comp, floor, floor == 6);
 
             // 現フロアの entitylist から除外
             entitylist.Remove(comp);
@@ -416,6 +418,7 @@ namespace Maze
         private void entityFall(Entity e)
         {
             int pitX = e.xpos, pitY = e.ypos;
+            if (char.IsLetter(e.graph) && e.hit > 0 && isEntitySeeable(e)) CombatLog.AddFall(e, floor, floor == 6);
             entitylist.Remove(e);
             e.xpos = pitX;
             e.ypos = pitY;
@@ -925,9 +928,14 @@ namespace Maze
                    Math.Sqrt(Math.Pow(e.xpos - hero.xpos, 2) + Math.Pow(e.ypos - hero.ypos, 2)) <= Constant.VISION_DISTANCE;
         }
 
+        // Hero が凍結・魅了で動けない間に、1回の tick() で進めるワールドのターン数の上限。
+        // 上限に達したらいったん画面に戻り、次の操作で続きを進める（凍結の重ねがけ等でゲームが固まるのを防ぐ）
+        private const int MaxWorldTurnsPerTick = 50;
+
         public void tick()
         {
             bool wasFrozen;
+            int worldTurns = 0;
             do
             {                    // hero.frozen が > 0、または hero.charmed が > 0 なら繰り返す
                 if (hero.polymorphed > 0) hero.polymorphed--;
@@ -999,7 +1007,7 @@ namespace Maze
 
                 wasFrozen = hero.frozen > 0;
                 if (wasFrozen) hero.frozen--;
-            } while (wasFrozen || applyHeroCharm());
+            } while (++worldTurns < MaxWorldTurnsPerTick && (wasFrozen || applyHeroCharm()));
         }
 
         // 魅了状態のHeroを魅了元へ強制的に1マス近づける。まだ魅了が残っていれば true を返す（tick()のループ継続条件）
@@ -1066,6 +1074,7 @@ namespace Maze
             if (!wasCompleted && gemQuest.IsCompleted)
             {
                 Console.WriteLine("★★ 伝説の宝石４種を全て祭壇に嵌め込んだ！ 大クエスト完了！ ★★");
+                CombatLog.AddGemsComplete(hero);
                 hero.gold += 200;
             }
         }
@@ -1306,17 +1315,20 @@ namespace Maze
             if (altar.embeddedGem != null)
             {
                 Console.WriteLine("この祭壇にはすでに宝石が嵌まっている");
+                CombatLog.AddEmbed(user, gem, altar, false);
                 return;
             }
             if (!gem.isLarge || gem.ability == Gem.GemAbility.None || gem.ability != altar.season)
             {
                 Console.WriteLine("…何も起きなかった");
+                CombatLog.AddEmbed(user, gem, altar, false);
                 return;
             }
             altar.embeddedGem = gem;
             user.itemlist.RemoveAt(itemIndex);
             gem.revealByEffect();
             Console.WriteLine("{0} を祭壇に嵌め込んだ！", gem.name);
+            CombatLog.AddEmbed(user, gem, altar, true);
         }
 
         public void ctrlDrop(int index)

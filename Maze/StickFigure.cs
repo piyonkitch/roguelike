@@ -89,6 +89,13 @@ namespace Maze
         public bool pig;            // 豚化中
         public bool charmed;        // 魅了中
         public bool frozen;         // 凍結中
+        public float crouch;        // かがむ（物を拾う） 0..1
+        public float drink;         // 瓶を口元へ傾ける 0..1
+        public float read;          // 巻物を両手で広げる 0..1
+        public float wave;          // 手を振る 0..1
+        public float cheer;         // 両手を上げて喜ぶ 0..1
+        public bool hideWeapon;     // 武器を描かない（瓶・巻物・宝石を持っている間）
+        public bool before;         // 出来事が起きる前の見た目で描く（祭壇の嵌め込み前など）
     }
 
     // 骨格の各点（ローカル座標）
@@ -137,22 +144,22 @@ namespace Maze
         //
         // 線形補間（Linear Interpolation）: a と b の間の値を a + (b - a) × t で返す。
         // t=0 で a、t=1 で b、t=0.5 でちょうど中間（例: Lerp(10, 30, 0.25) = 15）
-        protected static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
+        internal static float Lerp(float a, float b, float t) { return a + (b - a) * t; }
 
-        protected static PointF Dir(float angle, float len)
+        internal static PointF Dir(float angle, float len)
         {
             return new PointF((float)Math.Sin(angle) * len, (float)Math.Cos(angle) * len);
         }
 
-        protected static PointF Add(PointF a, PointF b) { return new PointF(a.X + b.X, a.Y + b.Y); }
+        internal static PointF Add(PointF a, PointF b) { return new PointF(a.X + b.X, a.Y + b.Y); }
 
-        protected static PointF Mid(PointF a, PointF b, float t)
+        internal static PointF Mid(PointF a, PointF b, float t)
         {
             return new PointF(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t);
         }
 
         // 死亡で灰色、被弾で白、alpha を反映した色
-        protected static Color Tone(Color c, Anim a, float alphaMul = 1f)
+        internal static Color Tone(Color c, Anim a, float alphaMul = 1f)
         {
             float gray = Math.Min(1f, a.fall) * 0.7f;
             float lum = (c.R * 0.30f + c.G * 0.59f + c.B * 0.11f) * 0.7f;
@@ -162,47 +169,47 @@ namespace Maze
             return Color.FromArgb(Clamp(al), Clamp((int)r), Clamp((int)gg), Clamp((int)b));
         }
 
-        protected static int Clamp(int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
+        internal static int Clamp(int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
 
-        protected static Color Darken(Color c, float k)
+        internal static Color Darken(Color c, float k)
         {
             return Color.FromArgb(c.A, (int)(c.R * k), (int)(c.G * k), (int)(c.B * k));
         }
 
-        protected static Pen MakePen(Color c, float w)
+        internal static Pen MakePen(Color c, float w)
         {
             Pen p = new Pen(c, w);
             p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
             return p;
         }
 
-        protected static void Line(Graphics g, Color c, float w, PointF p1, PointF p2)
+        internal static void Line(Graphics g, Color c, float w, PointF p1, PointF p2)
         {
             using (Pen p = MakePen(c, w)) g.DrawLine(p, p1, p2);
         }
 
-        protected static void Lines(Graphics g, Color c, float w, params PointF[] pts)
+        internal static void Lines(Graphics g, Color c, float w, params PointF[] pts)
         {
             using (Pen p = MakePen(c, w)) g.DrawLines(p, pts);
         }
 
-        protected static void Circle(Graphics g, Color fill, PointF c, float r)
+        internal static void Circle(Graphics g, Color fill, PointF c, float r)
         {
             using (Brush b = new SolidBrush(fill)) g.FillEllipse(b, c.X - r, c.Y - r, r * 2, r * 2);
         }
 
-        protected static void Ring(Graphics g, Color col, float w, PointF c, float r)
+        internal static void Ring(Graphics g, Color col, float w, PointF c, float r)
         {
             using (Pen p = MakePen(col, w)) g.DrawEllipse(p, c.X - r, c.Y - r, r * 2, r * 2);
         }
 
-        protected static void Poly(Graphics g, Color fill, params PointF[] pts)
+        internal static void Poly(Graphics g, Color fill, params PointF[] pts)
         {
             using (Brush b = new SolidBrush(fill)) g.FillPolygon(b, pts);
         }
 
         // 左向きでも読めるように文字を描く
-        protected static void Text(Graphics g, string s, float size, Color c, PointF center, Anim a)
+        internal static void Text(Graphics g, string s, float size, Color c, PointF center, Anim a)
         {
             GraphicsState st = g.Save();
             g.TranslateTransform(center.X, center.Y);
@@ -228,7 +235,7 @@ namespace Maze
             }
         }
 
-        protected static void DrawHeart(Graphics g, PointF c, float s, Anim a)
+        internal static void DrawHeart(Graphics g, PointF c, float s, Anim a)
         {
             float bob = (float)Math.Sin(a.time * 6) * 2f;
             c = new PointF(c.X, c.Y + bob);
@@ -241,7 +248,7 @@ namespace Maze
         }
 
         // 豚の頭（豚化中のパーティメンバー用）
-        protected static void DrawPigHead(Graphics g, PointF c, float r, Anim a)
+        internal static void DrawPigHead(Graphics g, PointF c, float r, Anim a)
         {
             Color pink = Tone(Color.FromArgb(255, 182, 193), a);
             Color dark = Tone(Color.FromArgb(200, 110, 130), a);
@@ -283,23 +290,25 @@ namespace Maze
         static readonly Pose CastStrike = new Pose(0.2f, 1.55f, 0.0f, -0.3f, 0.4f, 0.45f, -0.4f, -0.35f, 0f, 0f);
         // のけぞり
         static readonly Pose Recoil = new Pose(-0.35f, -0.4f, 0.6f, -0.6f, 0.4f, 0.1f, -0.3f, -0.35f, -0.2f, 0.8f);
+        // 拾う・飲む・読む・手を振る・喜ぶ
+        static readonly Pose Crouch = new Pose(0.55f, 0.7f, 0.2f, 0.3f, 0.3f, 1.0f, -1.8f, 0.2f, -1.3f, 0.6f);
+        static readonly Pose Drink  = new Pose(-0.15f, 2.2f, 2.2f, -0.2f, 0.5f, 0.2f, -0.15f, -0.2f, -0.1f, 0f);
+        static readonly Pose Read   = new Pose(0.05f, 1.1f, 0.7f, 1.0f, 0.8f, 0.2f, -0.15f, -0.2f, -0.1f, 0f);
+        static readonly Pose Wave   = new Pose(0f, 2.75f, 0.3f, -0.2f, 0.4f, 0.2f, -0.15f, -0.2f, -0.1f, 0.6f);
+        static readonly Pose Cheer  = new Pose(-0.1f, 2.9f, 0.2f, 2.7f, 0.2f, 0.3f, -0.2f, -0.3f, -0.1f, 0.6f);
 
         protected WeaponKind CurrentWeapon(Anim a)
         {
             if (a.pig) return WeaponKind.None;
             Weapon w = entity != null ? entity.weapon : null;
             if (w == null) return defaultWeapon;
-            if (w.engraveName == "Sting") return WeaponKind.Dagger;
-            string n = w.name;
-            if (n.Contains("Dagger")) return WeaponKind.Dagger;
-            if (n.Contains("Mace")) return WeaponKind.Mace;
-            if (n.Contains("Short Sword")) return WeaponKind.ShortSword;
-            if (n.Contains("Long Sword")) return WeaponKind.LongSword;
-            if (n.Contains("Vopal")) return WeaponKind.Vorpal;
-            return WeaponKind.ShortSword;
+            return WeaponArt.KindOf(w);
         }
 
-        protected static bool IsThrust(WeaponKind w)
+        // 効果音用: 今持っている武器の種類
+        public WeaponKind WeaponForSound { get { return CurrentWeapon(new Anim()); } }
+
+        internal static bool IsThrust(WeaponKind w)
         {
             return w == WeaponKind.None || w == WeaponKind.Dagger || w == WeaponKind.Knife || w == WeaponKind.Claw;
         }
@@ -321,6 +330,16 @@ namespace Maze
             p.rUA += (float)Math.Sin(a.time * 2.5f + 1f) * 0.04f;
             p = Pose.Lerp(p, wind, a.windup);
             p = Pose.Lerp(p, strike, a.strike);
+            p = Pose.Lerp(p, Crouch, a.crouch);
+            p = Pose.Lerp(p, Drink, a.drink);
+            p = Pose.Lerp(p, Read, a.read);
+            if (a.wave > 0)
+            {
+                Pose wv = Wave;
+                wv.rFA += (float)Math.Sin(a.time * 12) * 0.5f;   // 手首を左右に振る
+                p = Pose.Lerp(p, wv, a.wave);
+            }
+            p = Pose.Lerp(p, Cheer, a.cheer);
             p = Pose.Lerp(p, Recoil, a.recoil);
 
             float H = height;
@@ -386,12 +405,8 @@ namespace Maze
         //
         protected void DrawWeapon(Graphics g, Rig r, Anim a, WeaponKind kind)
         {
+            if (a.hideWeapon) return;
             float H = height, wt = Math.Max(1f, H * 0.8f);
-            PointF h = r.rHand;
-            float ang = r.weaponAngle;
-            Color steel = Tone(Color.FromArgb(215, 220, 230), a);
-            Color wood = Tone(Color.FromArgb(139, 90, 43), a);
-            Color gold = Tone(Color.FromArgb(212, 175, 55), a);
 
             // 振り下ろしの剣閃
             if (a.strike > 0.55f && !a.cast && !IsThrust(kind) && kind != WeaponKind.Staff)
@@ -407,92 +422,18 @@ namespace Maze
                 using (Pen p = MakePen(Color.FromArgb(Clamp(al), 255, 255, 240), 3f * wt)) g.DrawCurve(p, arc);
             }
 
-            switch (kind)
+            if (kind == WeaponKind.None)
             {
-                case WeaponKind.None:
-                    Circle(g, Tone(color, a), h, 2.4f * H);
-                    break;
-                case WeaponKind.Dagger:
-                case WeaponKind.Knife:
-                {
-                    float len = WeaponLength(kind) * H;
-                    PointF tip = Add(h, Dir(ang, len));
-                    bool sting = entity != null && entity.weapon != null && entity.weapon.engraveName == "Sting";
-                    if (sting)
-                        Line(g, Color.FromArgb((int)(120 * a.alpha), 135, 206, 250), 5.5f * wt, h, tip);
-                    Line(g, steel, 1.8f * wt, h, tip);
-                    Line(g, gold, 1.8f * wt, Add(h, Dir(ang + 1.57f, 3 * H)), Add(h, Dir(ang - 1.57f, 3 * H)));
-                    break;
-                }
-                case WeaponKind.ShortSword:
-                case WeaponKind.LongSword:
-                case WeaponKind.Vorpal:
-                {
-                    float len = WeaponLength(kind) * H;
-                    PointF tip = Add(h, Dir(ang, len));
-                    if (kind == WeaponKind.Vorpal)
-                        Line(g, Color.FromArgb((int)(110 * a.alpha), 200, 120, 255), 7f * wt, h, tip);
-                    Line(g, steel, (kind == WeaponKind.ShortSword ? 2.2f : 2.6f) * wt, h, tip);
-                    Line(g, gold, 2f * wt, Add(h, Dir(ang + 1.57f, 4.5f * H)), Add(h, Dir(ang - 1.57f, 4.5f * H)));
-                    Line(g, wood, 2f * wt, h, Add(h, Dir(ang, -4 * H)));
-                    break;
-                }
-                case WeaponKind.Mace:
-                {
-                    PointF head = Add(h, Dir(ang, 18 * H));
-                    Line(g, wood, 2.2f * wt, Add(h, Dir(ang, -3 * H)), head);
-                    for (int i = 0; i < 6; i++)
-                        Line(g, steel, 1.5f * wt, head, Add(head, Dir(ang + i * 1.047f, 6.5f * H)));
-                    Circle(g, Tone(Color.FromArgb(128, 128, 140), a), head, 4.5f * H);
-                    break;
-                }
-                case WeaponKind.Club:
-                {
-                    PointF mid = Add(h, Dir(ang, 12 * H));
-                    PointF tip = Add(h, Dir(ang, 26 * H));
-                    Line(g, wood, 3f * wt, Add(h, Dir(ang, -3 * H)), mid);
-                    Line(g, wood, 6.5f * wt, mid, tip);
-                    Circle(g, Tone(Color.FromArgb(100, 62, 30), a), Add(h, Dir(ang, 18 * H)), 1.8f * H);
-                    break;
-                }
-                case WeaponKind.Pick:
-                {
-                    PointF head = Add(h, Dir(ang, 22 * H));
-                    Line(g, wood, 2.2f * wt, Add(h, Dir(ang, -3 * H)), head);
-                    Lines(g, steel, 2.4f * wt,
-                        Add(head, Dir(ang + 1.9f, 9 * H)), Add(head, Dir(ang + 1.3f, 3 * H)), head,
-                        Add(head, Dir(ang - 1.3f, 3 * H)), Add(head, Dir(ang - 1.9f, 9 * H)));
-                    break;
-                }
-                case WeaponKind.Staff:
-                {
-                    PointF top = Add(h, Dir(ang, 34 * H));
-                    Line(g, wood, 2.4f * wt, Add(h, Dir(ang, -14 * H)), top);
-                    if (staffOrb != Color.Empty)
-                    {
-                        float glow = 0.6f + 0.4f * (float)Math.Sin(a.time * 5);
-                        Circle(g, Color.FromArgb((int)(90 * glow * a.alpha), staffOrb), top, 7f * H);
-                        Circle(g, Tone(staffOrb, a), top, 3.2f * H);
-                    }
-                    break;
-                }
-                case WeaponKind.Cutlass:
-                {
-                    PointF p1 = Add(h, Dir(ang, 10 * H));
-                    PointF p2 = Add(Add(h, Dir(ang, 20 * H)), Dir(ang + 1.57f, 3 * H));
-                    PointF p3 = Add(Add(h, Dir(ang, 27 * H)), Dir(ang + 1.57f, 7 * H));
-                    using (Pen p = MakePen(steel, 3f * wt)) g.DrawCurve(p, new[] { h, p1, p2, p3 });
-                    using (Pen p = MakePen(gold, 2f * wt)) g.DrawArc(p, h.X - 4 * H, h.Y - 4 * H, 8 * H, 8 * H, 0, 180);
-                    break;
-                }
-                case WeaponKind.Claw:
-                    for (int i = -1; i <= 1; i++)
-                        Line(g, Tone(Color.FromArgb(240, 240, 220), a), 1.3f * wt, h, Add(h, Dir(ang + i * 0.35f, 6 * H)));
-                    break;
+                Circle(g, Tone(color, a), r.rHand, 2.4f * H);   // 素手
+                return;
             }
+            Weapon w = entity != null ? entity.weapon : null;
+            bool sting = w != null && w.engraveName == "Sting";
+            bool rust = w != null && w.isRust;
+            WeaponArt.Draw(g, kind, r.rHand, r.weaponAngle, H, a, sting, rust, staffOrb);
         }
 
-        protected static float WeaponLength(WeaponKind k)
+        internal static float WeaponLength(WeaponKind k)
         {
             switch (k)
             {
@@ -507,6 +448,114 @@ namespace Maze
                 case WeaponKind.Staff: return 34;
                 case WeaponKind.Cutlass: return 27;
                 default: return 4;
+            }
+        }
+    }
+
+    //
+    // 武器の絵。人型が手に持つ武器と、戦闘ビューの地面に置かれた武器（ItemDesigns）で共用する。
+    // hand を持ち手の位置、ang を刃先の向き（真下=0 の角度）、H を大きさの倍率として描く
+    //
+    static class WeaponArt
+    {
+        public static WeaponKind KindOf(Weapon w)
+        {
+            if (w.engraveName == "Sting") return WeaponKind.Dagger;
+            string n = w.name;
+            if (n.Contains("Dagger")) return WeaponKind.Dagger;
+            if (n.Contains("Mace")) return WeaponKind.Mace;
+            if (n.Contains("Short Sword")) return WeaponKind.ShortSword;
+            if (n.Contains("Long Sword")) return WeaponKind.LongSword;
+            if (n.Contains("Vopal")) return WeaponKind.Vorpal;
+            return WeaponKind.ShortSword;
+        }
+
+        public static void Draw(Graphics g, WeaponKind kind, PointF h, float ang, float H, Anim a, bool sting, bool rust, Color staffOrb)
+        {
+            float wt = Math.Max(1f, H * 0.8f);
+            // 錆びた刃は赤茶色
+            Color steel = Figure.Tone(rust ? Color.FromArgb(165, 90, 55) : Color.FromArgb(215, 220, 230), a);
+            Color wood = Figure.Tone(Color.FromArgb(139, 90, 43), a);
+            Color gold = Figure.Tone(Color.FromArgb(212, 175, 55), a);
+
+            switch (kind)
+            {
+                case WeaponKind.Dagger:
+                case WeaponKind.Knife:
+                {
+                    float len = Humanoid.WeaponLength(kind) * H;
+                    PointF tip = Figure.Add(h, Figure.Dir(ang, len));
+                    if (sting)
+                        Figure.Line(g, Color.FromArgb((int)(120 * a.alpha), 135, 206, 250), 5.5f * wt, h, tip);
+                    Figure.Line(g, steel, 1.8f * wt, h, tip);
+                    Figure.Line(g, gold, 1.8f * wt, Figure.Add(h, Figure.Dir(ang + 1.57f, 3 * H)), Figure.Add(h, Figure.Dir(ang - 1.57f, 3 * H)));
+                    break;
+                }
+                case WeaponKind.ShortSword:
+                case WeaponKind.LongSword:
+                case WeaponKind.Vorpal:
+                {
+                    float len = Humanoid.WeaponLength(kind) * H;
+                    PointF tip = Figure.Add(h, Figure.Dir(ang, len));
+                    if (kind == WeaponKind.Vorpal)
+                        Figure.Line(g, Color.FromArgb((int)(110 * a.alpha), 200, 120, 255), 7f * wt, h, tip);
+                    Figure.Line(g, steel, (kind == WeaponKind.ShortSword ? 2.2f : 2.6f) * wt, h, tip);
+                    Figure.Line(g, gold, 2f * wt, Figure.Add(h, Figure.Dir(ang + 1.57f, 4.5f * H)), Figure.Add(h, Figure.Dir(ang - 1.57f, 4.5f * H)));
+                    Figure.Line(g, wood, 2f * wt, h, Figure.Add(h, Figure.Dir(ang, -4 * H)));
+                    break;
+                }
+                case WeaponKind.Mace:
+                {
+                    PointF head = Figure.Add(h, Figure.Dir(ang, 18 * H));
+                    Figure.Line(g, wood, 2.2f * wt, Figure.Add(h, Figure.Dir(ang, -3 * H)), head);
+                    for (int i = 0; i < 6; i++)
+                        Figure.Line(g, steel, 1.5f * wt, head, Figure.Add(head, Figure.Dir(ang + i * 1.047f, 6.5f * H)));
+                    Figure.Circle(g, Figure.Tone(rust ? Color.FromArgb(140, 80, 50) : Color.FromArgb(128, 128, 140), a), head, 4.5f * H);
+                    break;
+                }
+                case WeaponKind.Club:
+                {
+                    PointF mid = Figure.Add(h, Figure.Dir(ang, 12 * H));
+                    PointF tip = Figure.Add(h, Figure.Dir(ang, 26 * H));
+                    Figure.Line(g, wood, 3f * wt, Figure.Add(h, Figure.Dir(ang, -3 * H)), mid);
+                    Figure.Line(g, wood, 6.5f * wt, mid, tip);
+                    Figure.Circle(g, Figure.Tone(Color.FromArgb(100, 62, 30), a), Figure.Add(h, Figure.Dir(ang, 18 * H)), 1.8f * H);
+                    break;
+                }
+                case WeaponKind.Pick:
+                {
+                    PointF head = Figure.Add(h, Figure.Dir(ang, 22 * H));
+                    Figure.Line(g, wood, 2.2f * wt, Figure.Add(h, Figure.Dir(ang, -3 * H)), head);
+                    Figure.Lines(g, steel, 2.4f * wt,
+                        Figure.Add(head, Figure.Dir(ang + 1.9f, 9 * H)), Figure.Add(head, Figure.Dir(ang + 1.3f, 3 * H)), head,
+                        Figure.Add(head, Figure.Dir(ang - 1.3f, 3 * H)), Figure.Add(head, Figure.Dir(ang - 1.9f, 9 * H)));
+                    break;
+                }
+                case WeaponKind.Staff:
+                {
+                    PointF top = Figure.Add(h, Figure.Dir(ang, 34 * H));
+                    Figure.Line(g, wood, 2.4f * wt, Figure.Add(h, Figure.Dir(ang, -14 * H)), top);
+                    if (staffOrb != Color.Empty)
+                    {
+                        float glow = 0.6f + 0.4f * (float)Math.Sin(a.time * 5);
+                        Figure.Circle(g, Color.FromArgb((int)(90 * glow * a.alpha), staffOrb), top, 7f * H);
+                        Figure.Circle(g, Figure.Tone(staffOrb, a), top, 3.2f * H);
+                    }
+                    break;
+                }
+                case WeaponKind.Cutlass:
+                {
+                    PointF p1 = Figure.Add(h, Figure.Dir(ang, 10 * H));
+                    PointF p2 = Figure.Add(Figure.Add(h, Figure.Dir(ang, 20 * H)), Figure.Dir(ang + 1.57f, 3 * H));
+                    PointF p3 = Figure.Add(Figure.Add(h, Figure.Dir(ang, 27 * H)), Figure.Dir(ang + 1.57f, 7 * H));
+                    using (Pen p = Figure.MakePen(steel, 3f * wt)) g.DrawCurve(p, new[] { h, p1, p2, p3 });
+                    using (Pen p = Figure.MakePen(gold, 2f * wt)) g.DrawArc(p, h.X - 4 * H, h.Y - 4 * H, 8 * H, 8 * H, 0, 180);
+                    break;
+                }
+                case WeaponKind.Claw:
+                    for (int i = -1; i <= 1; i++)
+                        Figure.Line(g, Figure.Tone(Color.FromArgb(240, 240, 220), a), 1.3f * wt, h, Figure.Add(h, Figure.Dir(ang + i * 0.35f, 6 * H)));
+                    break;
             }
         }
     }

@@ -213,6 +213,7 @@ namespace Maze
                             if (itemlist[i].entity == gemToDeliver) { itemlist.RemoveAt(i); break; }
                         gemToDeliver.revealByEffect();
                         Console.WriteLine("{0} は {1} を祭壇に嵌め込んだ！", name, gemToDeliver.name);
+                        CombatLog.AddEmbed(this, gemToDeliver, altarTarget, true);
                     }
                     else
                     {
@@ -220,6 +221,7 @@ namespace Maze
                         if (!failedAltars.ContainsKey(gemToDeliver))
                             failedAltars[gemToDeliver] = new HashSet<string>();
                         failedAltars[gemToDeliver].Add(altarKey);
+                        CombatLog.AddEmbed(this, gemToDeliver, altarTarget, false);
                     }
                     autoEquip(entitylist);
                     return;
@@ -380,6 +382,8 @@ namespace Maze
                     e.graph != '*') continue;
                 // % は HP が満タンなら不要（ただしモーリュの根は食料ではないので対象外）
                 if (e.graph == '%' && !(e is MolyRoot) && hit >= hitmax) continue;
+                // 拾ってもすぐ捨てるだけの物は探しに行かない（拾う→捨てる→離れる→また拾いに戻る、を繰り返して動けなくなるため）
+                if (wouldDiscard(e)) continue;
                 int distToItem = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
                 if (distToItem == 0) continue;                  // すでに同じマスにいる
                 if (distToItem > ITEM_SEARCH_RANGE) continue;  // 遠すぎる
@@ -390,6 +394,16 @@ namespace Maze
                 if (distToItem < bestDist) { bestDist = distToItem; nearest = e; }
             }
             return nearest;
+        }
+
+        // 拾っても autoEquip() ですぐ捨てる物か: 今の装備以下の武器・鎧（名前付きのクエストアイテムは除く）、識別済みで有害な物
+        private bool wouldDiscard(Entity e)
+        {
+            if (e is Weapon w)
+                return w.engraveName == null && weapon != null && w.sharpness <= ((Weapon)weapon).sharpness;
+            if (e is Armor a)
+                return armor != null && a.hardness <= ((Armor)armor).hardness;
+            return e.isUsable() && e.isHarmful();
         }
 
         // 視界内で最も近い敵を返す

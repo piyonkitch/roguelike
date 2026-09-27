@@ -63,6 +63,9 @@ namespace Maze
             // set は、なし
         }
 
+        // 識別されていない時の名前（Green Potion など）。戦闘ビューで瓶の液体の色に使う
+        public string appearance { get { return nickname; } }
+
         private Use myuse;                      // インスタンスごとの use() の実体をしまうところ
         private string nickname;                // 識別されていない時の名前
         private string realname;                // 識別済みの時の名前
@@ -135,18 +138,21 @@ namespace Maze
         //
         static private void useHealing(Entity user)
         {
+            CombatLog.SetUseEffect(user, UseEffect.Healing, true);
             Console.WriteLine("おいしい");
             user.hit = user.hitmax;
         }
 
         static private void usePoison(Entity user)
         {
+            CombatLog.SetUseEffect(user, UseEffect.Poison, true);
             Console.WriteLine("おなかがいたい");
             user.hit--;
         }
 
         static private void useGainStrength(Entity user)
         {
+            CombatLog.SetUseEffect(user, UseEffect.GainStrength, true);
             Console.WriteLine("力がみなぎる");
             if (user.strength < user.strengthmax)
             {
@@ -160,12 +166,14 @@ namespace Maze
 
         static private void useLoseStrength(Entity user)
         {
+            CombatLog.SetUseEffect(user, UseEffect.LoseStrength, true);
             Console.WriteLine("脱力している");
             if (user.strength > 0) user.strength--;
         }
 
         static private void useAmnesia(Entity user)
         {
+            CombatLog.SetUseEffect(user, UseEffect.Amnesia, true);
             Console.WriteLine("あれ？");
             user.amnesia = true;
             if (user is Companion companion)

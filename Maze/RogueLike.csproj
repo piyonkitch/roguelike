@@ -107,6 +107,8 @@
     <Compile Include="BattleView.cs" />
     <Compile Include="StickFigure.cs" />
     <Compile Include="EnemyDesigns.cs" />
+    <Compile Include="ItemDesigns.cs" />
+    <Compile Include="SoundFx.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
