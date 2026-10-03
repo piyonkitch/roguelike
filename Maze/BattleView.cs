@@ -936,6 +936,7 @@ namespace Maze
             int floorShown = (fallFloor > 0 && t < FallSceneMs) ? fallFloor : logic.floor;
             EnsureBackground(floorShown);
             g.DrawImageUnscaled(bg, 0, 0);
+            DrawAnimatedBackground(g, floorShown, time);
 
             PointF shake = ComputeShake(t);
             g.TranslateTransform(shake.X, shake.Y);
@@ -1818,12 +1819,7 @@ namespace Maze
                     float hz = H * 0.3f;
                     using (LinearGradientBrush b = new LinearGradientBrush(new RectangleF(0, hz, W, H - hz), Color.FromArgb(30, 70, 115), Color.FromArgb(12, 30, 55), 90f))
                         g.FillRectangle(b, 0, hz, W, H - hz);
-                    using (Pen p = new Pen(Color.FromArgb(50, 170, 210, 255), 1))
-                        for (int i = 0; i < 40; i++)
-                        {
-                            float x = rnd.Next(W), y = hz + 6 + rnd.Next((int)(H - hz));
-                            g.DrawArc(p, x, y, 14, 5, 200, 140);
-                        }
+                    // 波の線は動かすので、ここでは描かず DrawAnimatedBackground() で毎フレーム描く
                     using (Brush b = new SolidBrush(Color.FromArgb(20, 24, 32)))
                     {
                         g.FillPolygon(b, new[] { new PointF(0, 20), new PointF(40, 60), new PointF(28, H * 0.5f), new PointF(0, H * 0.6f) });
@@ -1861,6 +1857,38 @@ namespace Maze
                     using (Pen p = new Pen(Color.FromArgb(90, 255, 255, 255), 1)) g.DrawLine(p, 0, gy, W, gy);
                 }
             }
+        }
+
+        //
+        // 背景のうち動くもの（キャッシュした背景の上に毎フレーム描く）。ほかの階の動きもここに足す
+        //
+        PointF[] waves;     // 6階の波の線の元の位置（背景と同じ乱数で決める）
+        int wavesW, wavesH;
+
+        void DrawAnimatedBackground(Graphics g, int floor, float time)
+        {
+            if (floor != 6) return;
+            int W = pic.Width, H = pic.Height;
+            float hz = H * 0.3f;   // 水平線（EnsureBackground と同じ）
+            if (waves == null || wavesW != W || wavesH != H)
+            {
+                Random rnd = new Random(6 * 7919);
+                waves = new PointF[40];
+                for (int i = 0; i < waves.Length; i++)
+                    waves[i] = new PointF(rnd.Next(W), hz + 6 + rnd.Next((int)(H - hz)));
+                wavesW = W; wavesH = H;
+            }
+            // ゆっくり横に流し（手前＝画面の下ほど速い）、1本ずつ位相をずらして上下にわずかに揺らす
+            using (Pen p = new Pen(Color.FromArgb(50, 170, 210, 255), 1))
+                for (int i = 0; i < waves.Length; i++)
+                {
+                    float depth = (waves[i].Y - hz) / (H - hz);          // 0=奥 1=手前
+                    float speed = 4 + 6 * depth;                          // 毎秒 4〜10px
+                    float span = W + 28;
+                    float x = ((waves[i].X + time * speed) % span + span) % span - 14;
+                    float y = waves[i].Y + (float)Math.Sin(time * 0.8f + i * 1.3f) * 1.5f;
+                    g.DrawArc(p, x, y, 14, 5, 200, 140);
+                }
         }
 
         static void DrawTorch(Graphics g, float x, float y)

@@ -93,6 +93,13 @@ namespace Maze
             battleView = new BattleView(battlePic, logic);
             battleView.Play(new List<CombatEvent>());
 
+            // 物理キーでも操作できるよう、どのボタンにフォーカスがあってもフォームが先にキーを受け取る
+            this.KeyPreview = true;
+
+            // 持ち物の一覧はボタン（＜ など）に重なる位置にあるので、一番手前に出す
+            // （Designer では一覧よりボタンを先に追加しており、先に追加した部品ほど手前に表示されるため）
+            listBoxItemlist.BringToFront();
+
             magicTimer = new System.Windows.Forms.Timer();
             magicTimer.Interval = 1000;
             magicTimer.Tick += (s, ev) =>
@@ -480,14 +487,98 @@ namespace Maze
         private void toolStripMenuItemHelp_Click(object sender, EventArgs e)
         {
             MessageBox.Show(
-@"↑↓←→  上下左右へ移動
+@"↑↓←→  上下左右へ移動（テンキーの 8 2 4 6 ＝NumLock 解除時、h j k l でも移動できる）
+>  <     下り階段・上り階段
 u         アイテムを使う (iで表示&選択してから)
 i         アイテムの一覧表示・非表示の切り替え (u, d, w, Wの前に表示と選択)
+            一覧が開いている間は ↑↓（k j）で選び、Enter で使う、Esc か i で閉じる
 d         アイテムを落とす
 w         武器を構える
 W         鎧を着る
 t         武器を解除する
 T         鎧を脱ぐ", "roguelikeのヘルプ");
+        }
+
+        //
+        // キーボード操作（画面のボタンと同じ処理を呼ぶ）
+        //
+
+        // 矢印キー（NumLock を解除したテンキーの 8・2・4・6 も同じキーとして届く）と Esc。
+        // 矢印キーはボタン間のフォーカス移動に使われてしまうので、ここで先に受け取る
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if ((keyData & (Keys.Control | Keys.Alt)) == 0)
+            {
+                switch (keyData & Keys.KeyCode)
+                {
+                    case Keys.Up: MoveKey(0); return true;
+                    case Keys.Down: MoveKey(1); return true;
+                    case Keys.Left: MoveKey(2); return true;
+                    case Keys.Right: MoveKey(3); return true;
+                    case Keys.Escape:
+                        if (listBoxItemlist.Visible) { listBoxItemlist.Hide(); return true; }
+                        break;
+                    // Enter・Space は、そのままだとフォーカスが残っているボタン（最後にクリックしたボタン）を押してしまうので受け取る。
+                    // 持ち物の一覧が開いているときの Enter は、選んだ物を使う（u と同じ）
+                    case Keys.Enter:
+                        if (listBoxItemlist.Visible) buttonUse_Click(this, EventArgs.Empty);
+                        return true;
+                    case Keys.Space:
+                        return true;
+                }
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        // 文字キー（KeyPreview で、どのボタンにフォーカスがあってもフォームが先に受け取る）。大文字・小文字を区別する
+        protected override void OnKeyPress(KeyPressEventArgs e)
+        {
+            base.OnKeyPress(e);
+            if (e.Handled || ModifierKeys.HasFlag(Keys.Control) || ModifierKeys.HasFlag(Keys.Alt)) return;
+            e.Handled = true;
+            switch (e.KeyChar)
+            {
+                case 'k': MoveKey(0); break;
+                case 'j': MoveKey(1); break;
+                case 'h': MoveKey(2); break;
+                case 'l': MoveKey(3); break;
+                case '>': buttonStairDown_Click(this, EventArgs.Empty); break;
+                case '<': buttonStairUp_Click(this, EventArgs.Empty); break;
+                case 'i':
+                    buttonInventory_Click(this, EventArgs.Empty);
+                    // キーで開いたときは先頭の物を選んだ状態にする（↑↓ で選び直せる）
+                    if (listBoxItemlist.Visible && listBoxItemlist.Items.Count > 0) listBoxItemlist.SelectedIndex = 0;
+                    break;
+                case 'u': buttonUse_Click(this, EventArgs.Empty); break;
+                case 'd': buttonDrop_Click(this, EventArgs.Empty); break;
+                case 'w': buttonWield_Click(this, EventArgs.Empty); break;
+                case 'W': buttonWear_Click(this, EventArgs.Empty); break;
+                case 't': buttonTakeOffWeapon_Click(this, EventArgs.Empty); break;
+                case 'T': buttonTakeOffArmor_Click(this, EventArgs.Empty); break;
+                default: e.Handled = false; break;
+            }
+        }
+
+        // 方向キー 0=上 1=下 2=左 3=右。持ち物の一覧が開いている間は、上下で一覧の選択を動かし Hero は動かさない
+        private void MoveKey(int dir)
+        {
+            if (listBoxItemlist.Visible)
+            {
+                int n = listBoxItemlist.Items.Count;
+                if (n == 0 || dir > 1) return;
+                int i = listBoxItemlist.SelectedIndex;
+                if (dir == 0) i = (i <= 0) ? 0 : i - 1;
+                else i = (i < 0) ? 0 : Math.Min(n - 1, i + 1);
+                listBoxItemlist.SelectedIndex = i;
+                return;
+            }
+            switch (dir)
+            {
+                case 0: buttonUp_Click(this, EventArgs.Empty); break;
+                case 1: buttonDown_Click(this, EventArgs.Empty); break;
+                case 2: buttonLeft_Click(this, EventArgs.Empty); break;
+                case 3: buttonRight_Click(this, EventArgs.Empty); break;
+            }
         }
 
     }
