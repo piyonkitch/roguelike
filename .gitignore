@@ -1,0 +1,14 @@
+# ビルド結果（MSBuild・Visual Studio が作る）
+bin/
+obj/
+
+# Visual Studio のキャッシュ・個人設定
+.vs/
+*.user
+*.suo
+
+# Claude Code の個人用の許可設定
+.claude/settings.local.json
+
+# VS Code の Azure 拡張が自動で書く Copilot への指示（このゲームとは関係ない）
+.github/copilot-instructions.md
