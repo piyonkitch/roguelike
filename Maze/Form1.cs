@@ -66,34 +66,38 @@ namespace Maze
             logic.init();
 
 #if DEBUG
-            // デバッグ用: 5〜7階へ直接行くワープボタン（Debug ビルドのときだけ出る。Release ビルドには入らない）
-            int[] debugFloors = { 5, 6, 7 };
-            for (int i = 0; i < debugFloors.Length; i++)
+            // デバッグ用: 5〜7階へ直接行くワープ（メニューの Debug。Debug ビルドのときだけ出る。Release ビルドには入らない）
+            ToolStripMenuItem debugMenu = new ToolStripMenuItem("Debug");
+            foreach (int f in new[] { 5, 6, 7 })
             {
-                int targetFloor = debugFloors[i];
-                Button debugButton = new Button();
-                debugButton.Text = targetFloor + "F";
-                debugButton.Location = new Point(375 + i * 65, 130);
-                debugButton.Size = new Size(60, 23);
-                debugButton.Click += (s, ev) =>
+                int targetFloor = f;
+                debugMenu.DropDownItems.Add(targetFloor + "F へワープ", null, (s, ev) =>
                 {
                     logic.ctrlDebugWarp(targetFloor);
                     afterAction();
-                };
-                this.Controls.Add(debugButton);
+                });
             }
+            menuStrip1.Items.Add(debugMenu);
 #endif
 
             // 地図を 1マス Dots ピクセルの大きさにする（Designer では 17ピクセル用の 340x340）。
-            // 広がった分だけ、地図より右の部品を右へ、ウィンドウを右と下へ広げ、メッセージ欄を下へ伸ばす
-            int grow = Dots * Constant.NGRID - pic.Width;
-            int growY = Dots * Constant.NGRID - pic.Height;
+            // 一番右の列・一番下の行の枠線（Dots*20 ピクセル目）も描けるよう、1ピクセル大きくする。
+            // 広がった分だけ、地図より右の部品を右へ、ウィンドウを下へ広げ、メッセージ欄を下へ伸ばす
+            int mapSize = Dots * Constant.NGRID + 1;
+            int grow = mapSize - pic.Width;
+            int growY = mapSize - pic.Height;
             int mapRight = pic.Right;
             foreach (Control c in this.Controls)
                 if (!(c is MenuStrip) && c != pic && c.Left >= mapRight) c.Left += grow;
-            pic.Size = new Size(Dots * Constant.NGRID, Dots * Constant.NGRID);
+            pic.Size = new Size(mapSize, mapSize);
             textBoxConsole.Height += growY;
-            this.ClientSize = new Size(this.ClientSize.Width + grow, this.ClientSize.Height + growY);
+            this.ClientSize = new Size(this.ClientSize.Width, this.ClientSize.Height + growY);
+
+            // 操作ボタン（矢印・＜＞・u i d w W t T）は、← と ＜ の左端がステータス欄の左端にそろうよう左へ寄せる
+            Button[] keypad = { buttonUp, buttonDown, buttonLeft, buttonRight, buttonStairUp, buttonStairDown,
+                                buttonUse, buttonInventry, buttonDrop, buttonWield, buttonWear, buttonTakeOffWeapon, buttonTakeOffArmor };
+            int keypadShift = labelStatus.Left - buttonLeft.Left;
+            foreach (Button b in keypad) b.Left += keypadShift;
 
             // ボタン・メニュー・持ち物の一覧・ステータス欄・メッセージ欄は Meiryo UI（日本語が読みやすい）。
             // フォーム自体の Font を変えると AutoScaleMode.Font で部品の大きさまで変わるので、部品ごとに設定する
@@ -114,12 +118,16 @@ namespace Maze
             int shift = BattleWidth + 12;
             foreach (Control c in this.Controls)
                 if (!(c is MenuStrip)) c.Left += shift;
-            this.ClientSize = new Size(this.ClientSize.Width + shift, this.ClientSize.Height);
             battlePic = new PictureBox();
             battlePic.Location = new Point(12, 25);
             battlePic.Size = new Size(BattleWidth, pic.Height);
             battlePic.BackColor = Color.Black;
             this.Controls.Add(battlePic);
+            // ウィンドウの幅は、一番右の部品（メッセージ欄など）の右に 12 ピクセルの余白を残す
+            int right = 0;
+            foreach (Control c in this.Controls)
+                if (!(c is MenuStrip) && c != listBoxItemlist) right = Math.Max(right, c.Right);
+            this.ClientSize = new Size(right + 12, this.ClientSize.Height);
             battleView = new BattleView(battlePic, logic);
             battleView.Play(new List<CombatEvent>());
 

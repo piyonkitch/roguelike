@@ -39,7 +39,7 @@ roguelike/
 - `entitylist: List<Entity>` に全エンティティをフラットに管理
 - **Logic** がゲームループ（`tick()`）と全操作を担当。Form から呼ばれる
 - **Form1** (RogueLike) は描画とボタンイベントのみ。ロジックは持たない
-- マップ表示は `PictureBox` への `Bitmap` 直接描画（**20px/マス**＝`Form1.Dots`）。Designer の地図は 17px 用の 340x340 のままで、`Form1` のコンストラクタが 400x400 に広げ、地図より右の部品を右へ、ウィンドウを右と下へ広げ、メッセージ欄を下へ伸ばす
+- マップ表示は `PictureBox` への `Bitmap` 直接描画（**20px/マス**＝`Form1.Dots`）。Designer の地図は 17px 用の 340x340 のままで、`Form1` のコンストラクタが **401x401**（20マス×20px＋1。一番右の列・一番下の行の枠線は 400 ピクセル目に引かれるため）に広げ、地図より右の部品を右へ、ウィンドウを下へ広げ、メッセージ欄を下へ伸ばす。操作ボタン（矢印・＜＞・u i d w W t T）は、← と ＜ の左端がステータス欄の左端にそろうよう左へ寄せる。ウィンドウの幅は一番右の部品（メッセージ欄）の右に 12px の余白を残す大きさにする
 - 地図の文字は **Consolas の太字**（マスの9割＝18px、ピクセル指定）でマスの中央に描く。ポイント指定だと画面では大きくなり `_` が下のマスにはみ出していた。日本語フォントは `\` が `¥` になる（魔法の斜めの記号が崩れる）ので地図には使わない
 - 日本語を出す文字（戦闘ビューの吹き出し・名前・数字・階名、ボタン、メニュー、持ち物の一覧、ステータス欄、メッセージ欄、知らせ）は **Meiryo UI**（`Form1.UiFont`）。フォーム自体の Font を変えると `AutoScaleMode.Font` で部品の大きさまで変わるので、コンストラクタで部品ごと（メニューは `SetMenuFont()`）に設定している。ヘルプとゲームオーバーの知らせは `MessageBox` ではなく `Form1.ShowInfo()`（キーと説明の2列の表。キーは Consolas）で出す。`MessageBox` は Windows 標準のフォントになり、空白でそろえた桁もずれるため。ステータス欄は1行が高くなるため、`Form1` のコンストラクタでメッセージ欄の上端をステータス欄（8行）の下まで下げている
 - コンソール出力は `TextBoxWriter` でフォーム内 TextBox にリダイレクト
@@ -54,7 +54,7 @@ roguelike/
 - **持ち物の一覧が開いている間**は、↑↓（`k`・`j`）で一覧の選択を動かし、Hero は動かさない。`i` か Esc で閉じる。キーで開いたときは先頭の物を選んだ状態にする
 - 一覧が開いているときの Enter は選んだ物を使う（`u` と同じ）。それ以外の Enter・Space は何もしない（Windows の標準動作のままだと、最後にクリックしてフォーカスが残っているボタンを押してしまうため `ProcessCmdKey()` で受け取って捨てる）
 - 持ち物の一覧（`listBoxItemlist`）は ＜ などのボタンに重なる位置にあるため、起動時に `BringToFront()` で一番手前に出している（Designer では一覧よりボタンを先に追加しており、先に追加した部品ほど手前に表示される）
-- **デバッグ用のワープボタン**（5F・6F・7F）は `#if DEBUG` で囲んであり、Debug ビルドのときだけ出る（`Form1` のコンストラクタと `Logic.ctrlDebugWarp()`）。Release ビルドには入らない。キーは割り当てない
+- **デバッグ用のワープ**（5F・6F・7F）はメニューの「Debug」にある。`#if DEBUG` で囲んであり、Debug ビルドのときだけ出る（`Form1` のコンストラクタと `Logic.ctrlDebugWarp()`）。Release ビルドには入らない。キーは割り当てない（ボタンにすると操作ボタンと重なるためメニューにした）
 
 ### マップ・視界
 - マップサイズ: 20×20
@@ -284,7 +284,7 @@ roguelike/
 - 物語の流れ: 6階の乗組員がモーリュの根を教える → 7階でモーリュの根を拾う → キルケーが降参してテイレシアスへ案内する → Shade もテイレシアスのことをささやく → テイレシアスに会う
 - graph `&` は「唯一の高位存在」向けの記号としてTeiresiasが使用している（Nethack由来）。将来「悪しき神」「魔王」のような敵を追加する場合も同じ記号を共用する想定
 
-### 戦闘ビュー（画面左 360x400＝地図と同じ高さ）
+### 戦闘ビュー（画面左 360x401＝地図と同じ高さ）
 - `Form1` のコンストラクタで `battlePic` を画面左に追加し、Designer 上の既存コントロールは実行時に X を +372 ずらしている（Designer ファイル自体は変更していない）。各段の地面の高さ（`Grounds`）は高さ 340 での値で、`GroundY()` が画面の高さに比例させる
 - 戦闘の記録: `CombatLog.Add(attacker, defender, CombatKind, damage)`（静的・セーブ対象外）。`Entity.tryMove()` の攻撃分岐、`Companion.castMagic()`、Dragon（炎）、Ice（凍結）、Siren（魅了）、Circe（豚化）、`Logic.updateUnderworldQuest()`（テイレシアスとの対面）から呼ぶ
 - `Form1.afterAction()` が `CombatLog.Drain()` → `BattleView.Play()` を呼ぶ。`show()` より先に呼ぶのはゲームオーバーのダイアログ中も倒れる演出を再生するため
@@ -348,6 +348,6 @@ roguelike/
 - **Hero が動けない間のワールドのターン**: `Logic.tick()` は Hero が凍結・魅了で動けない間、解けるまでワールドのターンを繰り返すが、1回の呼び出しで進めるのは最大 `MaxWorldTurnsPerTick`（50）ターンまで（超えたらいったん画面に戻り、次の操作で続きを進める）。凍結を**加算**する処理があると、解けるより速く凍結が増えてループが終わらずゲームが固まる（Ice Jerry の `frozen += 4〜7` で実際に起きた）。凍結させる処理を足すときは、すでに凍っている相手には効かないようにすること（Ice Jerry は `frozen > 0` の相手を選ばない）
 - **`charmed`（魅了）**: `Entity.charmed`（残りターン数）と `Entity.charmSource`（魅了元）。`Entity.move()` テンプレートが `frozen` の次にチェックし、`charmed > 0` の間は `doMove()` を呼ばず `charmSource` へ向かって強制的に1マス移動する（`maze.walk()` で経路を求め `manualmove()` を呼ぶ）。Hero は `move()` をバイパスするため、`Logic.tick()` の `applyHeroCharm()` が同じロジックを担当し、`while (hero.frozen-- > 0 || applyHeroCharm())` で、Heroが魅了により行動不能な間もワールドの1ターン分の処理（`tick()` 本体）を魅了が解けるまで繰り返す。プレイヤー操作側も `ctrlUp/Down/Left/Right` で `hero.charmed <= 0` のときのみ `manualmove()` を呼ぶようガードしている（魅了中は自分で操作できない）。**魅了中は攻撃できない**: `Entity.tryMove()` の攻撃分岐で `this.charmed > 0` なら `return false`（魅了元の隣で立ち止まるだけ。経路上の他の敵も攻撃しない）。このため `Entity.move()` と `applyHeroCharm()` はどちらも「移動してから `charmed--`」の順にしている
 - **`polymorphed`（豚化）**: `Entity.polymorphed`（残りターン数）。`frozen`・`charmed` と異なり移動そのものは妨げず、`Entity.move()` テンプレートでデクリメントした後 `doMove()` は通常どおり呼ぶ。攻撃・魔法の封じ込めは各所で個別にガードする方式: 近接攻撃は `Entity.tryMove()` の攻撃分岐で `this.polymorphed > 0` なら `return false`（通れないが攻撃もしない）、Companion の魔法発動・射線確保移動は `Companion.doMove()` 内で `polymorphed <= 0` を条件に追加している。Hero の `polymorphed` は `move()` をバイパスするため `Logic.tick()` の冒頭で毎ターンデクリメントする
-- **新規 `.cs` ファイルは `RogueLike.csproj` への追加が必須**: このプロジェクトはSDKスタイルではない旧形式のcsprojで、`<Compile Include="...">` に列挙されていないファイルはビルド対象に含まれない（コンパイルエラーにもならず「型が見つかりません」という紛らわしいエラーになる）。新規クラスファイルを追加したら必ず `RogueLike.csproj` の `<ItemGroup>` にも `<Compile Include="XXX.cs" />` を追記すること
+- **`RogueLike.csproj` は SDK スタイル**（`<Project Sdk="Microsoft.NET.Sdk">`、`TargetFramework` は `net48`、`UseWindowsForms`）。フォルダーにある `.cs`・`.resx`・`App.config` は自動でビルドに入るので、新しい `.cs` を足しても csproj は書き換えなくてよい（逆に、ビルドに入れたくない `.cs` を Maze フォルダーに置かないこと）。出力先は `bin\Debug`・`bin\Release` のまま（`AppendTargetFrameworkToOutputPath=false`）。バージョンなどは `Properties\AssemblyInfo.cs`（`GenerateAssemblyInfo=false`）。`Form1.resx` は `DependentUpon` で `Form1.cs` に結び付けている（ないとリソース名がクラス名の `Maze.RogueLike.resources` ではなく `Maze.Form1.resources` になり、起動時にアイコンを読めない）。ClickOnce の設定は外した。ビルドは MSBuild に `-restore` を付ける（Visual Studio は自動で行う）
 - **`MazeAlgo.setWall()` と `breakWall()` は別物**: `breakWall()` はDwarfの壁掘り専用で、呼ぶと `check5x5ForPit()` が走り、5x5エリアが全クリアになった際に「1階上に穴を開ける」という副作用（`pendingPits`）を発生させる。フロア生成時にマップ形状を意図的に編集したい場合（例: 6階の海峡=`Logic.carveStrait6()`で中央に壁の帯を作りゲートを開ける処理）はこの副作用のない `setWall(x, y, isWall)` を使うこと。生成時の地形編集に `breakWall()` を誤用すると、無関係なフロアに意図しない穴が発生する
 - **`clist`/`elist` によるフロア別配置数の指定**: `Logic.initEnemyAndThings()` の `clist` はA-Z・a-zの全52文字＋記号6種（58文字）を定義済みで、`elist` は各フロアにつき58桁の数字列（`clist` と同じ位置の文字に対応する出現数）。新しい敵を任意のフロアに配置可能にしたい場合は、`clist` 内の未使用文字（`initEnemyAndThings()` 内で `clist.IndexOf()` により実際に参照されている文字と重複しないもの）を選び、`elist` の該当桁を設定してパースループを追加する。**`clist` の文字は各敵の表示グラフ（`graph`）とは無関係な内部インデックス**であり、大文字・小文字も区別されるので、表示グラフと同じ文字を使いたい場合は大文字・小文字どちらかが既存の敵と衝突していないか確認すること（例: Dwarf の表示グラフは小文字 `d` で、大文字 `D` は既に Dragon が使用しているが、小文字 `d` は空いていたためそのまま `clist` 側の索引にも使っている）
