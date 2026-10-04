@@ -53,7 +53,6 @@ roguelike/
 - `>`・`<`: 下り階段・上り階段。`i`: 持ち物の一覧を開く・閉じる。`u`・`d`・`w`・`W`: 一覧で選んだ物を使う・落とす・構える・着る。`t`・`T`: 武器を外す・鎧を脱ぐ（文字キーは大文字・小文字を区別）
 - **持ち物の一覧が開いている間**は、↑↓（`k`・`j`）で一覧の選択を動かし、Hero は動かさない。`i` か Esc で閉じる。キーで開いたときは先頭の物を選んだ状態にする
 - 一覧が開いているときの Enter は選んだ物を使う（`u` と同じ）。それ以外の Enter・Space は何もしない（Windows の標準動作のままだと、最後にクリックしてフォーカスが残っているボタンを押してしまうため `ProcessCmdKey()` で受け取って捨てる）
-- デバッグ用の 5F・6F・7F ワープボタンにはキーを割り当てない
 - 持ち物の一覧（`listBoxItemlist`）は ＜ などのボタンに重なる位置にあるため、起動時に `BringToFront()` で一番手前に出している（Designer では一覧よりボタンを先に追加しており、先に追加した部品ほど手前に表示される）
 
 ### マップ・視界
@@ -303,7 +302,7 @@ roguelike/
   - `Talk`・`Give`（Hobbit の昔話・Bilbo の依頼と宝石の話、Sting を渡す、乗組員・Shade のつぶやき、キルケーの降参）: `Hobbit`・`CursedSailor`・`Shade`・`Circe`。手を振る動きは Hobbit だけ
   - `Embed`・`GemsComplete`（祭壇への嵌め込み、4つ揃った）: `Logic.tryEmbedGem()`・`Companion.doMove()`・`Logic.updateGemQuest()`
 - **待機画面**: パーティ、向かい側に「一番近い生き物」か「一番近い見えている穴（6階はカリュブディス）」、Hero が階段の上か隣なら背景に階段、手前の地面に見えている拾えるもの・祭壇を近い順に最大4個（名前付き）
-- **階名タイトル**: 表示中の階が変わったら（階段・落下・ワープ・ロード）画面中央に階名を約1.6秒出す（ロジック側の変更は不要）
+- **階名タイトル**: 表示中の階が変わったら（階段・落下・ロード）画面中央に階名を約1.6秒出す（ロジック側の変更は不要）
 - **物の絵**（`ItemDesigns.Create()`）: 見た目で区別できる情報は絵でも区別する。Potion は未識別名の色（`Potion.appearance`）で液体を塗り、Scroll は羊皮紙にラベル（`Scroll.label`）を書く。宝石は `DisplayColor` と大小、武器・防具は錆びを赤茶色、Sting は青白い縁取り、死体はその生き物の倒れた姿、モーリュの根は本来の姿（黒い根に乳白色の花）。**新しいアイテムを追加したら `ItemDesigns.Create()` にも絵を足すこと**（未登録は戦闘ビューに出ない）
 - 武器の絵は `WeaponArt.Draw()` に一本化しており、手に持つ武器と地面の武器で共用する（手に持つ武器の錆びも見える）
 - **背景のアニメーション**: 背景は階ごとに1枚の画像にキャッシュしているので、動かしたいものはキャッシュに含めず `BattleView.DrawAnimatedBackground()` で毎フレーム描く。今は6階の海の波（ゆっくり横に流れ、手前ほど速く、上下にわずかに揺れる）のみ。ほかの階の動きもここに足す
@@ -321,7 +320,7 @@ roguelike/
 - 保存するもの一式を `SaveData`（Logic.cs）にまとめ、**1回の `Serialize` で書き出す**。Hero・Companion は現フロアと `savedFloors` の各 `entitylist` に同じ参照で入っているため、別々に `Serialize` するとロード後に他フロアのリストの Hero・Companion が別物のコピーになる（本物の Hero がマップに出ず、敵からも攻撃されなくなる不具合の原因だった）
 - `SaveData` には `hero` と `companions` も入れる（別フロアに落下中の Companion は `entitylist` にいないため）
 - 旧形式（各データを別々に `Serialize`）のセーブも読める（`loadOldFormat()`）。ロード後に `removeStalePartyCopies()` で他フロアのリストから本物でない Hero・Companion を取り除く
-- 保存済みフロアへ戻る処理（階段・落下・ワープ）は `ensurePartyInEntitylist()` で、本物の Hero と行動中の Companion が `entitylist` にいることを保証する
+- 保存済みフロアへ戻る処理（階段・落下）は `ensurePartyInEntitylist()` で、本物の Hero と行動中の Companion が `entitylist` にいることを保証する
 - ロード後は `ensureTransients()` で非シリアライズフィールドを再初期化し、`newvision()` で視界を更新する
 
 ## 既知の設計上の注意点

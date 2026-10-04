@@ -263,7 +263,7 @@ namespace Maze
             if (events.Count > 0) SoundFx.PlayScene(CollectSounds());   // 待機画面では鳴らさない（前の音はそのまま）
             if (lastFloor != logic.floor)
             {
-                // 階が変わった（階段・落下・ワープ・ロード）。落下の場面のあとに階名を出す
+                // 階が変わった（階段・落下・ロード）。落下の場面のあとに階名を出す
                 if (lastFloor != -1) titleStart = now + (heroFall != null ? (long)FallSceneMs : 0);
                 lastFloor = logic.floor;
             }

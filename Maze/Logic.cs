@@ -1289,25 +1289,6 @@ namespace Maze
             newvision();
         }
 
-        // DEBUG専用: オデュッセイアフロアの動作確認用（不要になったら削除可）
-        // 現在地を保存し、指定フロアへ直接ワープする
-        public void ctrlDebugWarp(int targetFloor)
-        {
-            if (targetFloor == floor) return;
-
-            saveCurrentFloor(hero.xpos, hero.ypos);
-
-            if (savedFloors.ContainsKey(targetFloor))
-            {
-                restoreFloor(targetFloor, hero.xpos, hero.ypos);
-            }
-            else
-            {
-                floor = targetFloor;
-                generateNewFloor();
-            }
-        }
-
         public void ctrlUse(int index)
         {
             Item item = hero.itemlist[index];
