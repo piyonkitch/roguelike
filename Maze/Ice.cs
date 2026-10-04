@@ -56,20 +56,20 @@ namespace Maze
         {
             if (!angry) return;
 
-            if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) > 1)
-            {
-                return;               // 遠いので何もしない
-            }
-
+            // 隣にいる生き物（Hero・Companion・ほかの敵）から、毎ターン1体をランダムに選んで凍らせようとする。
             // すでに凍っている相手は凍らせない（重ねがけすると凍結が解けず、Hero のターンが永遠に回らなくなる）
-            if (target.frozen > 0) return;
+            List<Entity> near = entitylist.Where(e => e != this && e.hit > 0 &&
+                (e.isPartyMember || char.IsLetter(e.graph)) && !e.isNonHostile && e.frozen <= 0 &&
+                Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos) == 1).ToList();
+            if (near.Count == 0) return;
+            Entity victim = near[rnd.Next(near.Count)];
 
-            // 隣にいるので、凍らせようとする
             if (rnd.Next(100) < 50)
             {
-                target.frozen += rnd.Next(4) + 4;
-                Console.WriteLine("氷った");
-                CombatLog.Add(this, target, CombatKind.Freeze, 0);
+                victim.frozen = rnd.Next(4) + 4;    // 4〜7ターン
+                victim.frozenBy = this;             // 凍っている間、凍傷を負うことがある
+                Console.WriteLine("{0} は凍りついた！", victim.name);
+                CombatLog.Add(this, victim, CombatKind.Freeze, 0);
             }
         }
 

@@ -211,6 +211,7 @@ namespace Maze
         static public void useSleep(Entity user)
         {
             user.frozen = 4 + rnd.Next(4);                  // rogue を参考に、4-8ターン寝る
+            user.frozenBy = null;                           // 眠りでは凍傷を負わない
             Console.WriteLine("眠たい");
             CombatLog.SetUseEffect(user, UseEffect.Sleep, true);
         }

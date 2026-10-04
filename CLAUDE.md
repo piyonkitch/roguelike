@@ -74,6 +74,13 @@ roguelike/
 - HP0で死亡 → グラフィックが `%`（死体）に変わる
 - 死体の所持品と gold が床に落ちる
 
+### Ice Jerry と凍傷
+- Ice Jerry（`I`）は動かず、近接攻撃もしない。Hero・Companion に攻撃されると怒る
+- 怒っている間、隣にいる生き物（Hero・Companion・ほかの敵）から**毎ターン1体をランダムに選び**、50%で4〜7ターン凍らせる（「○○ は凍りついた！」）。すでに凍っている相手・倒れている者・戦わない相手（`isNonHostile`）は対象外
+- **凍傷**: Ice Jerry に凍らされている間、毎ターン15%で HP-1（「○○ は凍傷を負った！」）。HP が0になれば死体になり持ち物を落とす（`Entity.becomeCorpse()`。撃破の処理と共通）。Hero が凍傷で倒れたら `tick()` の凍結のループを止める
+- 言葉の使い分け: **状態は「凍結」**（`Entity.frozen`＝残りターン数、`Entity.frozenBy`＝凍らせた者）、**出来事は「凍傷」**（`Entity.applyFrostbite()`、`CombatKind.Frostbite`）。凍傷は `frozenBy` が Ice Jerry のときだけ起きる。Scroll of Sleep の眠りやアンバーの時間停止で止まっているとき（`frozenBy` が空）は起きない。それらで凍結を上書きしたら `frozenBy` を空にする。凍結が解けたら `frozenBy` も空に戻す
+- 敵・Companion の凍傷は `Entity.move()` の凍結の処理、Hero の凍傷は `Logic.tick()` の凍結のループで判定する
+
 ### 成長
 - 経験値5点でHPmax増加（+1〜3）・**MPmax増加（+1〜3）**、経験値リセット
 - 移動のたびに20%でHP自然回復
@@ -91,7 +98,7 @@ roguelike/
   5. **逃走**（HP ≤ max/3 かつ視界内に敵）: 敵から遠ざかる方向へ移動。Heroから6マス以内に留まる
   6. **アイテム探索**: 視界内・6マス以内・Heroから8マス以内のアイテムに向かう
   7. **Hero追従**: `maze.walk()` の実経路長が `FOLLOW_DISTANCE`（2）を超えていれば最短経路で1マス移動。壁を挟むとマンハッタン距離だけでは近く見えて動かなくなるため、経路長で判定する
-- **Companion は Hobbit を一切攻撃しない**（魔法・近接・素手すべて）。`Entity.tryMove()` 内でも `isCompanion && e is Hobbit` の場合は攻撃せず通行不可とする
+- **Companion は Hobbit を一切攻撃しない**（魔法・近接・素手すべて）。`Entity.tryMove()` 内でも `isCompanion && e is Hobbit` の場合は攻撃せず通行不可とする。魔法は経路上の誰にでも当たる（下記「Companion の魔法」）ので、Hobbit が射線上にいるときは撃たない
 - フロア移動時、CompanionはHeroの近く（距離3以内・歩行距離10ステップ以内）に再配置される
 - Companion の配置（`changePosNear`）は `maze.walk()` で到達可能性と歩行距離（`maxWalkDist=10`）を確認してから確定する。到達不能または遠すぎる位置には配置しない
 - `changePosNear` は壁に加えて穴のマスも選ばない。Logic から Companion を Hero の近くに置くときは必ず `Logic.placeCompanionNearHero()` を使う。これは「穴も生きている敵のいるマス（6階の Scylla 等）も通らずに Hero のもとへ歩いて行けるか」を `isReachableAvoidingPits(..., avoidCreatures: true)` で確かめて位置を選ぶ（`maze.walk()` は穴も敵も通れるものとして扱うため、海峡の向こう側に置かれてしまう）。6階は Companion を配置した後に海峡の壁の帯を作るため、`initEnemyAndThings()` で海峡を作った直後にも同じ条件で置き直す
@@ -100,7 +107,9 @@ roguelike/
 - MP初期値1、レベルアップで +1〜3 増加
 - 毎ターン20%でMP自然回復
 - 魔法を放つと MP を1消費
-- 8方向2マスに飛ぶ。壁で止まる。味方への誤射を回避
+- 8方向2マスに飛ぶ。壁で止まる
+- **経路上の誰にでも当たる**（Nethack と同じ。`castMagic()` は相手を選ばない）。当てられた相手は攻撃されたとみなす（`beat()`。Ice Jerry・Hobbit などが怒る）。ただし戦わない相手（`isNonHostile`＝Teiresias・降参した Circe）は当たっても HP が減らない（「びくともしない」。クエストの案内役を倒してしまわないため）
+- **撃つかどうかの判断**（`hasFriendlyFireFrom()`）: 経路上に味方（Hero・Companion）か、敵ではない相手（Hobbit・Dwarf・Teiresias・降参した Circe）がいれば撃たない
 - ランダムダメージ（1〜2）。敵・Heroどちらにも当たる
 - 魔法記号: 左右`-` 上下`|` 右上左下`/` 左上右下`\`（シアン色で1秒表示）
 
@@ -124,7 +133,7 @@ roguelike/
 - **パーティと不可侵**: `@`（Hero・Companion）と `h`（Hobbit）は Dwarf を攻撃しない。Dwarf も `@` と `h` を攻撃しない
 - **近くで掘ると音**: パーティメンバーとのユークリッド距離が5以内で壁に押し当てると「がんがんがん」と出力
 - **配置**: `elist`（`initEnemyAndThings()`）の小文字 `d` 列で階ごとの出現数を指定（デフォルトは2階のみ1体）。`clist` の大文字 `D` は Dragon が使用済みのため、Dwarf には小文字 `d` を割り当てている
-- Companion の AI から完全に除外: 魔法攻撃・射線確保・近接攻撃・逃走判定（`getNearestEnemy()`）すべて対象外
+- Companion の AI から完全に除外: 魔法攻撃・射線確保・近接攻撃・逃走判定（`getNearestEnemy()`）すべて対象外。魔法の経路上にいれば Companion は撃たない（撃った魔法は経路上の Dwarf にも当たる）
 - **5x5壁クリアで1階上に穴発生**: Dwarf が壁を崩し続け、任意の5x5エリアが壁ゼロになると、その中心座標に対応する1階上の床タイルが穴（`MazeDist.pits`）になる。重複トリガー防止のため `triggeredPits` HashSet で管理。穴は `MazeAlgo.takePendingPits()` → `Logic.processPendingPits()` のパイプラインで `savedFloors[floor-1].maze` に反映される
 
 ### 穴タイルと落下
@@ -144,17 +153,19 @@ roguelike/
 - セーブ/ロード: `formatter.Serialize(stream, savedFloors)` で永続化。旧フォーマットのセーブは SerializationException をキャッチして案内メッセージを出す
 
 ### Hobbit
-- 全Hobbitに名前あり（Frodo, Samwise, Merry, Pippin, Lobelia, Fatty 等）
-- 挨拶時に名前を名乗る
-- 2階の Hobbit 1体が **Bilbo**（クエストギバー）: HP=10、攻撃されても怒らない
+- 全Hobbitに名前あり（Frodo, Samwise, Merry, Pippin, Lobelia, Fatty 等）。2階に2体、3階に2体
+- 話しかける（Hero が隣に来る）と名前を名乗る。**話すのは隣に来た最初のターンだけ**（`wasAdjacent`。隣にいる間は繰り返さない。離れてまた隣に来ると話す）
+- Bilbo 以外の Hobbit は、名乗ったあと宝石クエストの昔話を1つずつ語る（`Hobbit.loreIndex`。2階の1人目＝話0、2人目＝話1、3階の1人目＝話2）。内容は「宝石クエスト」の節を参照
+- 3階の Hobbit 1体が **Bilbo**（クエストギバー）: HP=10、攻撃されても怒らない。1階の Sting を3階まで運ぶ依頼になる
 - Bilbo は毎ターン隣接するパーティメンバー（Hero・Companion）が Sting を持っているか確認する。持っていれば受け取りクエスト完了（Heroの位置によらず実行）
 
 ### クエスト: Stingを届けよ
-- **発生**: 2階で Bilbo に隣接すると依頼される
+- **発生**: 3階で Bilbo に隣接すると依頼される
 - **目標**: 1階にスポーンする名前付きダガー「Sting」（`engraveName = "Sting"`）を Bilbo に届ける
 - **完了条件**: Bilbo に隣接した状態で Sting を所持（Hero または Companion どちらでも可）
 - **報酬**: Gold +30
 - Companion が Sting を拾った場合、自動的に Bilbo のもとへ届けに向かう
+- Sting を受け取ったあとの Bilbo は、次のターンに「玉座の大きな宝石は2階から4階に散らばっている。似た色の偽物もあるが、本物は不思議な力を持つ」と宝石クエストの手がかりを話す（以後も会うたびに話す）
 
 ### アイテム記号
 | 記号 | 種類 |
@@ -208,8 +219,12 @@ roguelike/
 - **祭壇（Altar）**: 4階にのみ4つ配置（graph=`_`）。東南西北の端に近いマスをBFS(幅優先サーチ)で選択。通行可能
   - 空き祭壇は灰色の `_`、宝石嵌め込み済みは宝石色の `_` で表示
   - 一度見たら遠ざかっても表示される（階段と同様）
-  - 祭壇ごとに受け入れる宝石の季節があるが、**プレイヤーには非公開**
-- **嵌め込み方法**: Heroが祭壇の上に立ち、インベントリから大きな宝石を選んで `u` を押す
+  - 祭壇ごとに受け入れる宝石の季節がある（東＝春・南＝夏・西＝秋・北＝冬）。直接は教えず、**Hobbit の謎かけで示す**:
+    - 話0（2階）: 地下4階の王の間には季節の女神の玉座があり、四方の台座に大きな宝石がはめられていた。今は盗まれて台座だけ。宝石を台座に戻した者には女神の褒美がある（クエストの目的）
+    - 話1（2階）: 『日の昇る方には、花咲く季節の石を。日の最も高い方には、深い海の色の石を』（東＝春の薔薇色、南＝夏の青）
+    - 話2（3階）: 『日の沈む方には、実りの季節の蜜の色の石を。日の届かぬ方には、凍った水の色の石を』（西＝秋の琥珀色、北＝冬の水色）
+    - 祭壇の配置（`Logic` の東南西北と季節の対応）を変えるときは、謎かけ（`Hobbit.Lore`）も合わせて直すこと
+- **嵌め込み方法**: Heroが祭壇の上に立ち、インベントリから大きな宝石を選んで `u` を押す。Hero が空いている祭壇の上に乗ると「台座には宝石をはめるくぼみがある。（持ち物の一覧で宝石を選び、u ではめ込む）」と表示する（`Logic.tellAltarHint()`。移動は `Logic.heroStep()` に共通化）。Help にも記載
   - 季節が一致すれば嵌め込み成功 → 宝石が識別され、宝石の効果は消える
   - 一致しなければ「何も起きなかった」（拾い直し可能）
 - **完了条件**: 4つの祭壇すべてに正しい宝石が嵌め込まれた状態でフロア4に滞在中
@@ -241,7 +256,7 @@ roguelike/
 
 | 敵/ギミック | graph | HP | str | tough | 行動 |
 |---|---|---|---|---|---|
-| CursedSailor（呪われた乗組員） | `C` | 3 | 2 | 0 | `elist`の`C`列で階ごとに配置数を指定（デフォルトは6階に4体）。Orc/Kobold型の追跡雑魚 |
+| CursedSailor（呪われた乗組員） | `C` | 3 | 2 | 0 | `elist`の`C`列で階ごとに配置数を指定（デフォルトは6階に4体）。Orc/Kobold型の追跡雑魚。Hero が4歩以内にいると8〜13ターンおきに海峡の手がかりをつぶやく（スキュラの強さ、渦は何でも飲み込む、飲み込まれた者は深い底へ吐き出される、渡る道は二つ、魔女の島へは白い花の黒い根を持っていけ。全員で順番に回す） |
 | Scylla | `Y` | 14 | 7 | 2 | 固定1体、移動しない。隣接する最大2体を1ターンで攻撃する |
 | Charybdis（渦） | ― | ― | ― | ― | 敵Entityではなく既存の穴システム（`MazeAlgo.addPit()`）を流用した地形ギミック。踏むと即座に7階へ強制落下する |
 
@@ -257,13 +272,14 @@ roguelike/
 
 | 敵/NPC/アイテム | graph | HP | str | tough | 行動 |
 |---|---|---|---|---|---|
-| Circe | `X` | 8 | 2 | 1 | 固定1体、移動しない（Iceと同型）。隣接するパーティメンバーに30%の確率で`polymorphed`（豚化）を付与。モーリュの根を所持している相手・既に豚化中の相手には効果なし |
+| Circe | `X` | 8 | 2 | 1 | 固定1体、移動しない（Iceと同型）。隣接するパーティメンバーに30%の確率で`polymorphed`（豚化）を付与。モーリュの根を所持している相手・既に豚化中の相手には効果なし。**モーリュの根を持つパーティメンバーが隣に来ると降参する**（原典どおり。`Circe.yielded`、セーブ対象）: 豚にした者を元に戻し、「冥府の奥の盲目の予言者テイレシアスに会え」と案内し、以後は誰も豚にせず、誰からも攻撃されない（`isNonHostile`） |
 | MolyRoot（モーリュの根） | `%` | 1 | ― | ― | 敵ではなくアイテム。見た目は食料と区別がつかないが、拾っても食べられることはなく、所持しているだけでキルケーの豚化を無効化する。拾うと「食べない方がよさそうだ」という警告が出る |
-| Shade（冥府の霊） | `G` | 1 | 1 | 0 | Bat型のランダム徘徊。複数体配置。`Entity.avoidsAttack()`により物理攻撃を50%の確率ですり抜ける |
-| Teiresias | `&` | 10 | 0 | 0 | 固定1体、移動せず戦わない冥府の予言者NPC。Hero・Companion問わず誰からも攻撃できない（`Entity.tryMove()`で`e is Teiresias`なら常に`return false`）。クエスト完了役を誤って倒してソフトロックする事故を防ぐための措置 |
+| Shade（冥府の霊） | `G` | 1 | 1 | 0 | Bat型のランダム徘徊。複数体配置。`Entity.avoidsAttack()`により物理攻撃を50%の確率ですり抜ける。乗組員と同じ仕組みで、近くでテイレシアスのことや原典の仲間エルペーノールのことをささやく |
+| Teiresias | `&` | 10 | 0 | 0 | 固定1体、移動せず戦わない冥府の予言者NPC。Hero・Companion問わず誰からも攻撃できない（`Entity.isNonHostile` が true。`Entity.tryMove()` の攻撃分岐と Companion の AI がこれを見る。魔法は当たるが HP は減らない）。クエスト完了役を誤って倒してソフトロックする事故を防ぐための措置 |
 
 - 7階には下り階段がない（最終フロア）。小さな宝石も1〜4階の宝石クエスト専用のため7階では出現しない
-- **クエスト「キルケーの呪いを越えて冥府へ」**: 7階到達で自動発生（`UnderworldQuest.triggered`）。Hero・Companionのいずれかがテイレシアスに隣接すると完了。報酬はGold+100
+- **クエスト「キルケーの呪いを越えて冥府へ」**: 7階到達で自動発生（`UnderworldQuest.triggered`）。到着時に「ここがキルケーの島…」に続けて、白い花をつけた黒い根の草（モーリュの根）がお守りになることを語る。Hero・Companionのいずれかがテイレシアスに隣接すると完了。報酬はGold+100
+- 物語の流れ: 6階の乗組員がモーリュの根を教える → 7階でモーリュの根を拾う → キルケーが降参してテイレシアスへ案内する → Shade もテイレシアスのことをささやく → テイレシアスに会う
 - graph `&` は「唯一の高位存在」向けの記号としてTeiresiasが使用している（Nethack由来）。将来「悪しき神」「魔王」のような敵を追加する場合も同じ記号を共用する想定
 
 ### 戦闘ビュー（画面左 360x340）
@@ -282,7 +298,7 @@ roguelike/
   - `Use`（Potion を飲む・Scroll を読む）: `Item.use()` が `AddUse()`、各効果の関数（`Potion.useHealing` 等・`Scroll.useIdentify` 等）が `SetUseEffect(user, 効果, 効いたか)` を書き込む。**新しい Potion・Scroll を追加したら `UseEffect` と `BattleView.DrawUse()` にも演出を足すこと**
   - `Fall`（穴・カリュブディスに落ちる）: `Logic.heroFall()`・`companionFall()`・`entityFall()`。Hero が落ちた場面は落ちる前の階の背景で描く
   - `Dig`（Dwarf の壁掘り）: `Dwarf` の「がんがんがん」・壁を砕く・金貨が出る（パーティが近いときのみ）
-  - `Talk`・`Give`（Hobbit のあいさつ・Bilbo の依頼、Sting を渡す）: `Hobbit`
+  - `Talk`・`Give`（Hobbit の昔話・Bilbo の依頼と宝石の話、Sting を渡す、乗組員・Shade のつぶやき、キルケーの降参）: `Hobbit`・`CursedSailor`・`Shade`・`Circe`。手を振る動きは Hobbit だけ
   - `Embed`・`GemsComplete`（祭壇への嵌め込み、4つ揃った）: `Logic.tryEmbedGem()`・`Companion.doMove()`・`Logic.updateGemQuest()`
 - **待機画面**: パーティ、向かい側に「一番近い生き物」か「一番近い見えている穴（6階はカリュブディス）」、Hero が階段の上か隣なら背景に階段、手前の地面に見えている拾えるもの・祭壇を近い順に最大4個（名前付き）
 - **階名タイトル**: 表示中の階が変わったら（階段・落下・ワープ・ロード）画面中央に階名を約1.6秒出す（ロジック側の変更は不要）
@@ -315,6 +331,7 @@ roguelike/
 - `Entity` に `isPartyMember`・`isCompanion` フラグあり。敵との `@` 衝突を攻撃にするか入れ替えにするかの判定に使用
 - `Companion` の `pendingMagicEffects`・`magicRnd` は `[NonSerialized]`。デシリアライズ後は `ensureTransients()` で再初期化される
 - `tryMove()` の `else` 分岐はすべての未知グラフ記号を「敵」として攻撃する。新しいエンティティを追加する際は `>` や `<` のように明示的に素通り処理を追加すること
+- 攻撃されてはいけない NPC（クエストの案内役など）は `Entity.isNonHostile` を true にする（Teiresias、降参した Circe）。`tryMove()` の攻撃分岐、Companion の敵選び・魔法を撃つかどうかの判断、魔法が当たったときのダメージ（無効）がこれを見る。`e is Teiresias` のような個別の型判定は増やさないこと
 - `Companion` が `tryMove()` で Hobbit のいるマスに踏み込もうとした場合、攻撃せず通行不可とする処理を `tryMove()` 内に追加済み（`isCompanion && e is Hobbit`）
 - 視界は `Logic.addVision()` にまとめられており、`newvision()` から **Heroのみ** 呼ぶ。Companion の視界は合成しない。`isEntitySeeable()` でも Hero の視界のみ判定し、Companion 自身は `isInactive` でなければ常時 `true` を返す
 - 描画時に同一マスに複数エンティティが重なった場合、`Form1.entityPriority()` で優先度を判定し最上位のものだけ表示する（Hero > Companion > 生きている敵 > 死体 > アイテム）
@@ -326,7 +343,7 @@ roguelike/
 - `MazeDist.initmaze()` の末尾で、四方が壁（または盤外）に囲まれた孤立床マスを壁に変換する（1パスのみ・連鎖しない）
 - `Altar` は `tryMove()` で `_` を明示的に素通り処理（階段と同様）。`entityPriority()` でもアイテムと同扱い（優先度0）にして、生物より下に描画される
 - **`frozen` のデクリメント責任**: `Entity.move()` がテンプレートメソッドとして一元管理する（`if (!isLive()) return; if (frozen > 0) { frozen--; return; } doMove(...)`）。個々のエンティティ（Companion・敵）は `move()` を直接オーバーライドせず、`doMove()` だけを実装すればよい。例外は `Hero` で、`frozen` は `Logic.tick()` の `while (hero.frozen-- > 0)` が管理するため `move()` 自体を空実装でオーバーライドしている。新規エンティティ追加時は `move()` ではなく `doMove()` を実装すること（`move()` を誤って直接オーバーライドするとこの一元管理から外れ、永久凍結バグを再発させる）
-- **Hero が動けない間のワールドのターン**: `Logic.tick()` は Hero が凍結・魅了で動けない間、解けるまでワールドのターンを繰り返すが、1回の呼び出しで進めるのは最大 `MaxWorldTurnsPerTick`（50）ターンまで（超えたらいったん画面に戻り、次の操作で続きを進める）。凍結を**加算**する処理があると、解けるより速く凍結が増えてループが終わらずゲームが固まる（Ice Jerry の `frozen += 4〜7` で実際に起きた）。凍結させる処理を足すときは、すでに凍っている相手には効かないようにすること（Ice Jerry は `target.frozen > 0` なら何もしない）
+- **Hero が動けない間のワールドのターン**: `Logic.tick()` は Hero が凍結・魅了で動けない間、解けるまでワールドのターンを繰り返すが、1回の呼び出しで進めるのは最大 `MaxWorldTurnsPerTick`（50）ターンまで（超えたらいったん画面に戻り、次の操作で続きを進める）。凍結を**加算**する処理があると、解けるより速く凍結が増えてループが終わらずゲームが固まる（Ice Jerry の `frozen += 4〜7` で実際に起きた）。凍結させる処理を足すときは、すでに凍っている相手には効かないようにすること（Ice Jerry は `frozen > 0` の相手を選ばない）
 - **`charmed`（魅了）**: `Entity.charmed`（残りターン数）と `Entity.charmSource`（魅了元）。`Entity.move()` テンプレートが `frozen` の次にチェックし、`charmed > 0` の間は `doMove()` を呼ばず `charmSource` へ向かって強制的に1マス移動する（`maze.walk()` で経路を求め `manualmove()` を呼ぶ）。Hero は `move()` をバイパスするため、`Logic.tick()` の `applyHeroCharm()` が同じロジックを担当し、`while (hero.frozen-- > 0 || applyHeroCharm())` で、Heroが魅了により行動不能な間もワールドの1ターン分の処理（`tick()` 本体）を魅了が解けるまで繰り返す。プレイヤー操作側も `ctrlUp/Down/Left/Right` で `hero.charmed <= 0` のときのみ `manualmove()` を呼ぶようガードしている（魅了中は自分で操作できない）。**魅了中は攻撃できない**: `Entity.tryMove()` の攻撃分岐で `this.charmed > 0` なら `return false`（魅了元の隣で立ち止まるだけ。経路上の他の敵も攻撃しない）。このため `Entity.move()` と `applyHeroCharm()` はどちらも「移動してから `charmed--`」の順にしている
 - **`polymorphed`（豚化）**: `Entity.polymorphed`（残りターン数）。`frozen`・`charmed` と異なり移動そのものは妨げず、`Entity.move()` テンプレートでデクリメントした後 `doMove()` は通常どおり呼ぶ。攻撃・魔法の封じ込めは各所で個別にガードする方式: 近接攻撃は `Entity.tryMove()` の攻撃分岐で `this.polymorphed > 0` なら `return false`（通れないが攻撃もしない）、Companion の魔法発動・射線確保移動は `Companion.doMove()` 内で `polymorphed <= 0` を条件に追加している。Hero の `polymorphed` は `move()` をバイパスするため `Logic.tick()` の冒頭で毎ターンデクリメントする
 - **新規 `.cs` ファイルは `RogueLike.csproj` への追加が必須**: このプロジェクトはSDKスタイルではない旧形式のcsprojで、`<Compile Include="...">` に列挙されていないファイルはビルド対象に含まれない（コンパイルエラーにもならず「型が見つかりません」という紛らわしいエラーになる）。新規クラスファイルを追加したら必ず `RogueLike.csproj` の `<ItemGroup>` にも `<Compile Include="XXX.cs" />` を追記すること

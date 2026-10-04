@@ -50,6 +50,7 @@ namespace Maze
         Freeze,     // Ice Jerry の凍結
         Charm,      // Siren の魅了
         Polymorph,  // Circe の豚化
+        Frostbite,  // 凍傷（Ice Jerry に凍らされている間に HP が減る。attacker は凍らせた Ice Jerry）
         Meet,       // Teiresias との対面（クエスト完了）
         // ここから下は戦闘以外の場面
         Pickup,     // 物を拾う（死体を食べる・金貨を拾うを含む）
@@ -290,6 +291,7 @@ namespace Maze
                             break;
                         case CombatKind.Breath: Cue(cues, Sfx.Breath, t0 + 0.3f * D); break;
                         case CombatKind.Freeze: Cue(cues, Sfx.IceFreeze, t0 + 0.3f * D); break;
+                        case CombatKind.Frostbite: Cue(cues, Sfx.Frostbite, t0 + 0.5f * D); break;
                         case CombatKind.Charm: Cue(cues, Sfx.SirenSong, t0 + 0.15f * D); break;
                         case CombatKind.Polymorph: Cue(cues, Sfx.CirceWarp, t0 + 0.3f * D); break;
                         case CombatKind.Magic:
@@ -735,6 +737,7 @@ namespace Maze
                 case CombatKind.Miss:
                 case CombatKind.Barrier: return 0.35f;
                 case CombatKind.Polymorph: return 0.3f;
+                case CombatKind.Frostbite: return 0.6f;
                 case CombatKind.Freeze: return 0.2f;
                 default: return 0f;
             }
@@ -762,7 +765,7 @@ namespace Maze
                     ApplySolo(lane, actor, s, lt, a, m);
                     continue;
                 }
-                if (s.atk == actor)
+                if (s.atk == actor && kind != CombatKind.Frostbite)   // 凍傷では凍らせた Ice Jerry は動かない
                 {
                     float w, k;
                     AttackCurve(lt, D, out w, out k);
@@ -895,7 +898,7 @@ namespace Maze
                     break;
 
                 case CombatKind.Talk:
-                    if (s.atk == actor && lt >= 0)
+                    if (s.atk == actor && lt >= 0 && actor.e is Hobbit)   // 手を振るのは Hobbit だけ（乗組員・霊・キルケーは振らない）
                         a.wave = Math.Max(a.wave, Hold(lt, 0, 0.1f * D, D, D + 250));
                     break;
 
@@ -1724,7 +1727,7 @@ namespace Maze
                 case CombatKind.Miss: text = "はじかれた"; c = Color.Silver; break;
                 case CombatKind.Barrier: text = "結界！"; c = Color.LightSkyBlue; break;
                 case CombatKind.Pass: text = "すり抜けた"; c = Color.Lavender; break;
-                case CombatKind.Magic: text = "-" + ev.damage; c = Color.Cyan; break;
+                case CombatKind.Magic: text = ev.damage > 0 ? "-" + ev.damage : "効かない"; c = Color.Cyan; break;
                 case CombatKind.Breath:
                     if (ev.damage > 0) { text = "-" + ev.damage; c = Color.Orange; }
                     else { text = "かわした"; c = Color.Silver; }
@@ -1732,6 +1735,7 @@ namespace Maze
                 case CombatKind.Freeze: text = "凍結！"; c = Color.PaleTurquoise; break;
                 case CombatKind.Charm: text = "魅了！"; c = Color.HotPink; break;
                 case CombatKind.Polymorph: text = "豚化！"; c = Color.Pink; break;
+                case CombatKind.Frostbite: text = "凍傷 -" + ev.damage; c = Color.LightSkyBlue; break;
                 case CombatKind.Meet: text = "予言者テイレシアス"; c = Color.Gold; break;
                 default: text = null; c = Color.White; break;
             }

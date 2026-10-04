@@ -250,7 +250,7 @@ namespace Maze
                         if (e.hit <= 0) continue;
                         if (e is Hobbit) continue;  // Hobbitは攻撃しない
                         if (e is Dwarf) continue;   // Dwarfは攻撃しない
-                        if (e is Teiresias) continue; // Teiresiasは攻撃しない
+                        if (e.isNonHostile) continue; // 戦わない相手（Teiresias・降参した Circe）は攻撃しない
 
                         foreach (MagicDir dir in MAGIC_DIRS)
                         {
@@ -273,7 +273,7 @@ namespace Maze
                     if (e.hit <= 0) continue;
                     if (e is Hobbit) continue;  // Hobbitは攻撃しない
                     if (e is Dwarf) continue;   // Dwarfは攻撃しない
-                    if (e is Teiresias) continue; // Teiresiasは攻撃しない
+                    if (e.isNonHostile) continue; // 戦わない相手（Teiresias・降参した Circe）は攻撃しない
 
                     string[] moves4 = { "←", "→", "↑", "↓" };
                     foreach (string mv in moves4)
@@ -307,7 +307,7 @@ namespace Maze
                     if (!char.IsLetter(e.graph)) continue;
                     if (e is Hobbit) continue;  // Hobbitは攻撃しない
                     if (e is Dwarf) continue;   // Dwarfは攻撃しない
-                    if (e is Teiresias) continue; // Teiresiasは攻撃しない
+                    if (e.isNonHostile) continue; // 戦わない相手（Teiresias・降参した Circe）は攻撃しない
                     bool adjacent = (Math.Abs(e.xpos - xpos) == 1 && e.ypos == ypos) ||
                                     (e.xpos == xpos && Math.Abs(e.ypos - ypos) == 1);
                     if (!adjacent) continue;
@@ -418,7 +418,7 @@ namespace Maze
                 if (e.hit <= 0) continue;
                 if (e is Hobbit) continue;  // Hobbitは敵扱いしない
                 if (e is Dwarf) continue;   // Dwarfは敵扱いしない
-                if (e is Teiresias) continue; // Teiresiasは敵扱いしない
+                if (e.isNonHostile) continue; // 戦わない相手（Teiresias・降参した Circe）は敵扱いしない
                 int d = Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos);
                 if (d <= Constant.VISION_DISTANCE && d < minDist) { minDist = d; nearest = e; }
             }
@@ -473,8 +473,11 @@ namespace Maze
                 if (maze.isWall(tx, ty)) return false;
                 foreach (Entity f in entitylist)
                 {
-                    if (!f.isPartyMember) continue;
                     if (f == this) continue;
+                    // 魔法は経路上の誰にでも当たるので、味方と、敵ではない相手（Hobbit・Dwarf・Teiresias・降参した Circe）が
+                    // 射線上にいるときは撃たない
+                    bool mustNotHit = f.isPartyMember || ((f is Hobbit || f is Dwarf || f.isNonHostile) && f.hit > 0);
+                    if (!mustNotHit) continue;
                     if (f.xpos == tx && f.ypos == ty) return true;
                 }
             }
@@ -497,8 +500,16 @@ namespace Maze
                 {
                     if (e == this) continue;
                     if (e.xpos != tx || e.ypos != ty) continue;
-                    if (!char.IsLetter(e.graph)) continue;
-                    if (e is Dwarf) continue;   // Dwarfは攻撃しない
+                    if (!char.IsLetter(e.graph) && !e.isNonHostile) continue;   // 物には当たらない（記号が & の Teiresias は生き物として扱う）
+                    // 魔法は経路上の誰にでも当たる（Nethack と同じ。撃つかどうかは hasFriendlyFireFrom() で判断済み）
+                    e.beat(this);   // 当てられた相手は攻撃されたとみなす（Ice Jerry・Hobbit などが怒る）
+                    if (e.isNonHostile)
+                    {
+                        // Teiresias・降参した Circe は当たっても倒れない（クエストの案内役を倒してしまわないため）
+                        Console.WriteLine("{0} に魔法が当たったが、びくともしない", e.name);
+                        CombatLog.Add(this, e, CombatKind.Magic, 0);
+                        continue;
+                    }
 
                     int damage = magicRnd.Next(1, 3); // 1〜2ダメージ
                     e.hit -= damage;
@@ -507,14 +518,8 @@ namespace Maze
 
                     if (e.hit <= 0)
                     {
-                        e.graph = '%';
+                        e.becomeCorpse();
                         Console.WriteLine("{0} は {1} を魔法で倒した", name, e.name);
-                        foreach (Item i in e.itemlist)
-                        {
-                            i.entity.xpos = e.xpos;
-                            i.entity.ypos = e.ypos;
-                            i.entity.graph = i.entity.graphOrig;
-                        }
                         experience++;
                         if (experience >= 5)
                         {

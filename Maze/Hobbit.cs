@@ -47,6 +47,20 @@ namespace Maze
         public bool isQuestGiver { get; set; }
         public bool questCompleted { get; set; }
         private bool questRequested;
+
+        // 宝石クエストの昔話。Bilbo 以外の Hobbit が1人1つずつ語る（loreIndex で選ぶ。数が多いときは繰り返す）。
+        // 色と方角の対応は謎かけ: 日の昇る方＝東・花咲く季節＝春の薔薇色、日の最も高い方＝南・深い海の色＝夏の青、
+        // 日の沈む方＝西・実りの季節の蜜の色＝秋の琥珀色、日の届かぬ方＝北・凍った水の色＝冬の水色（Logic の祭壇の配置と同じ）
+        public int loreIndex { get; set; }
+        private static readonly string[] Lore = {
+            "昔話を知っているかい？地下4階の王の間には季節の女神の玉座があって、四方の台座に大きな宝石が一つずつはめられていたんだ。今は盗まれて台座しか残っていないが、宝石を台座に戻した者には女神の褒美があるそうだ",
+            "祖母の歌ではこうさ。『日の昇る方には、花咲く季節の石を。日の最も高い方には、深い海の色の石を』",
+            "歌の続きはこうだよ。『日の沈む方には、実りの季節の蜜の色の石を。日の届かぬ方には、凍った水の色の石を』",
+        };
+        private const string BilboGemTalk = "宝石の話を知っているかい？玉座の大きな宝石は、2階から4階に散らばっているらしい。似た色の偽物も出回っているが、本物は不思議な力を持っているそうだ";
+
+        // 前のターンに Hero の隣にいたか（隣に来た最初のターンだけ話し、隣にいる間は繰り返さないため）
+        private bool wasAdjacent;
         private const int QUEST_GOLD = 30;
         private const string QUEST_ITEM_NAME = "Sting";
 
@@ -74,6 +88,7 @@ namespace Maze
             if (carrier.weapon == stingItem.entity) carrier.weapon = null;
             hero.gold += QUEST_GOLD;
             questCompleted = true;
+            wasAdjacent = false;   // お礼の次のターンに、続けて宝石のありかを話す
             Console.WriteLine("{0}：「{1}を持ってきてくれたのか！ありがとう！約束の金貨{2}枚だ」", name, QUEST_ITEM_NAME, QUEST_GOLD);
             CombatLog.AddGive(carrier, this, stingItem.entity, QUEST_GOLD);
         }
@@ -99,8 +114,23 @@ namespace Maze
                 }
             }
 
-            if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) <= 1 && !angry)
+            bool adjacent = Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) <= 1;
+            bool justArrived = adjacent && !wasAdjacent;   // Hero が隣に来た最初のターン
+            wasAdjacent = adjacent;
+
+            if (adjacent && !angry)
             {
+                // 話すのは Hero が隣に来た最初のターンだけ（隣にいる間は黙ってその場にいる）
+                if (!justArrived) return;
+
+                // Bilbo: Sting を受け取ったあとは、宝石のありかを教える
+                if (isQuestGiver && questCompleted)
+                {
+                    Console.WriteLine("{0}：「{1}」", name, BilboGemTalk);
+                    CombatLog.AddTalk(this, target, BilboGemTalk);
+                    return;
+                }
+
                 // クエストギバー：依頼メッセージ（Sting未入手の場合）
                 if (isQuestGiver && !questCompleted)
                 {
@@ -118,17 +148,10 @@ namespace Maze
                     return;
                 }
 
-                // 通常の挨拶（名前あり）
-                DateTime dt = DateTime.Now;
-                if (dt.Hour > 7 && dt.Hour < 20)
-                {
-                    string message;
-                    if (dt.Hour < 10) message = "おはよう";
-                    else if (dt.Hour < 18) message = "こんにちは";
-                    else message = "こんばんは";
-                    Console.WriteLine("{0}：「{1}！私は{0}です」", name, message);
-                    CombatLog.AddTalk(this, target, string.Format("{0}！私は{1}です", message, name));
-                }
+                // 名乗ってから、宝石クエストの昔話を1つ語る
+                string lore = string.Format("私は{0}。{1}", name, Lore[loreIndex % Lore.Length]);
+                Console.WriteLine("{0}：「{1}」", name, lore);
+                CombatLog.AddTalk(this, target, lore);
                 return;
             }
 

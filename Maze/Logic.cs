@@ -508,13 +508,15 @@ namespace Maze
                 entitylist.Add(new Dragon(maze));
                 System.Threading.Thread.Sleep(20);
             }
-            // Hobbit（全員に名前をつける。2階の最後の1体はBilbo＝クエストギバー）
+            // Hobbit（全員に名前をつける。3階の最後の1体はBilbo＝クエストギバー。1階の Sting を3階まで運ぶ依頼になる）
+            // Bilbo 以外は宝石クエストの昔話を1つずつ語る（2階の1人目＝話0、2人目＝話1、3階の1人目＝話2）
             int hobbitCount = int.Parse(elist[floor - 1].Substring(clist.IndexOf("H"), 1));
             for (int i = 0; i < hobbitCount; i++)
             {
                 Hobbit h = new Hobbit(maze);
                 System.Threading.Thread.Sleep(20);
-                if (floor == 2 && i == hobbitCount - 1)
+                h.loreIndex = Math.Max(0, (floor - 2) * 2 + i);
+                if (floor == 3 && i == hobbitCount - 1)
                 {
                     h.name = "Bilbo";
                     h.isQuestGiver = true;
@@ -1006,8 +1008,14 @@ namespace Maze
                 magicEffects.RemoveAll(ef => ef.expiry <= DateTime.Now);
 
                 wasFrozen = hero.frozen > 0;
-                if (wasFrozen) hero.frozen--;
-            } while (++worldTurns < MaxWorldTurnsPerTick && (wasFrozen || applyHeroCharm()));
+                if (wasFrozen)
+                {
+                    hero.applyFrostbite();      // Ice Jerry に凍らされている間は凍傷を負うことがある
+                    hero.frozen--;
+                    if (hero.frozen <= 0) hero.frozenBy = null;
+                }
+                // Hero が倒れたら（凍傷など）、続きのターンは進めない
+            } while (hero.hit > 0 && ++worldTurns < MaxWorldTurnsPerTick && (wasFrozen || applyHeroCharm()));
         }
 
         // 魅了状態のHeroを魅了元へ強制的に1マス近づける。まだ魅了が残っていれば true を返す（tick()のループ継続条件）
@@ -1135,6 +1143,7 @@ namespace Maze
             {
                 underworldQuest.triggered = true;
                 Console.WriteLine("ここがキルケーの島…この先に冥府へ続く道があるという。");
+                Console.WriteLine("島のどこかに、白い花をつけた黒い根の草が生えているらしい。魔女の魔法から身を守るお守りになるという…");
             }
 
             Teiresias sage = entitylist.OfType<Teiresias>().FirstOrDefault();
@@ -1167,32 +1176,42 @@ namespace Maze
             return true;
         }
 
+        // Hero を1マス動かしてワールドを1ターン進める（穴に落ちたらそちらの処理へ）
+        private void heroStep(string dir)
+        {
+            int ox = hero.xpos, oy = hero.ypos;
+            if (hero.charmed <= 0) hero.manualmove(dir, maze, entitylist);
+            if (checkAndHandleHeroFall()) return;
+            if (hero.xpos != ox || hero.ypos != oy) tellAltarHint();
+            tick();
+        }
+
+        // 空いている祭壇の上に乗ったら、宝石のはめ込み方を教える
+        private void tellAltarHint()
+        {
+            Altar altar = entitylist.OfType<Altar>().FirstOrDefault(a => a.xpos == hero.xpos && a.ypos == hero.ypos);
+            if (altar == null || altar.embeddedGem != null) return;
+            Console.WriteLine("台座には宝石をはめるくぼみがある。（持ち物の一覧で宝石を選び、u ではめ込む）");
+        }
+
         public void ctrlUp()
         {
-            if (hero.charmed <= 0) hero.manualmove("↑", maze, entitylist);
-            if (checkAndHandleHeroFall()) return;
-            tick();
+            heroStep("↑");
         }
 
         public void ctrlLeft()
         {
-            if (hero.charmed <= 0) hero.manualmove("←", maze, entitylist);
-            if (checkAndHandleHeroFall()) return;
-            tick();
+            heroStep("←");
         }
 
         public void ctrlRight()
         {
-            if (hero.charmed <= 0) hero.manualmove("→", maze, entitylist);
-            if (checkAndHandleHeroFall()) return;
-            tick();
+            heroStep("→");
         }
 
         public void ctrlDown()
         {
-            if (hero.charmed <= 0) hero.manualmove("↓", maze, entitylist);
-            if (checkAndHandleHeroFall()) return;
-            tick();
+            heroStep("↓");
         }
 
         public void ctrlStairDown()

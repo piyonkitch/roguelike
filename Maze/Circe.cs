@@ -53,8 +53,29 @@ namespace Maze
             toughness = 1;
         }
 
+        // モーリュの根を持つ者に魔法を破られて降参したか（原典どおり、以後は味方としてテイレシアスへ案内する）
+        public bool yielded { get; set; }
+        public override bool isNonHostile { get { return yielded; } }
+
         protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
+            if (yielded) return;   // 降参したあとは誰も豚にしない
+
+            // モーリュの根を持つパーティメンバーが隣に来たら、魔法が効かないことを悟って降参する
+            Entity bearer = entitylist.FirstOrDefault(e => e.isPartyMember && e.hit > 0 &&
+                Math.Abs(e.xpos - xpos) + Math.Abs(e.ypos - ypos) <= 1 &&
+                e.itemlist.Any(item => item.entity is MolyRoot));
+            if (bearer != null)
+            {
+                yielded = true;
+                foreach (Entity e in entitylist)
+                    if (e.isPartyMember) e.polymorphed = 0;   // 豚にした者を元に戻す
+                Console.WriteLine("キルケー：「わたしの杖が効かない…！ モーリュの根を持つあなたは、ただの旅人ではないのね」");
+                Console.WriteLine("キルケー：「故郷へ帰る道を知りたいなら、冥府の奥にいる盲目の予言者テイレシアスに会いなさい。帰り道を知るのは彼だけよ」");
+                CombatLog.AddTalk(this, bearer, "杖が効かない…！ 帰り道を知りたいなら、冥府の奥の盲目の予言者テイレシアスに会いなさい");
+                return;
+            }
+
             foreach (Entity e in entitylist)
             {
                 if (!e.isPartyMember || e.hit <= 0) continue;

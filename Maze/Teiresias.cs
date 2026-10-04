@@ -51,5 +51,7 @@ namespace Maze
             strength = strengthmax = 0;
             toughness = 0;
         }
+
+        public override bool isNonHostile { get { return true; } }
     }
 }

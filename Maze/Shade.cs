@@ -51,6 +51,29 @@ namespace Maze
             hit = hitmax = 1;
             strength = strengthmax = 1;
             toughness = 0;
+            murmurWait = rnd.Next(1, 6);   // 一斉にささやかないよう、最初の間をずらす
+        }
+
+        // 冥府の霊のささやき。テイレシアスのこと、原典の仲間エルペーノールのこと
+        private static readonly string[] Lines = {
+            "…冥府の奥に…目の見えぬ予言者がいる…",
+            "…テイレシアス…故郷への帰り道を知る、ただ一人の者…",
+            "…生きた者がここへ来るとは…予言者に会いに来たのか…",
+            "…わたしはエルペーノール…魔女の館の屋根から落ちて死んだ…どうか弔ってくれ…",
+        };
+
+        // Hero が近く（4歩以内）にいるとき、数ターンに1回つぶやく（台詞は全員で順番に回す）
+        private int murmurWait = 1;
+        private static int nextLine;
+
+        private void murmur(Entity target)
+        {
+            if (--murmurWait > 0) return;
+            if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) > 4) return;
+            string line = Lines[nextLine++ % Lines.Length];
+            Console.WriteLine("{0}：「{1}」", "冥府の霊", line);
+            CombatLog.AddTalk(this, target, line);
+            murmurWait = 8 + rnd.Next(6);   // 8〜13ターンおき
         }
 
         public override bool avoidsAttack(Entity attacker)
@@ -60,6 +83,7 @@ namespace Maze
 
         protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
+            murmur(target);   // ささやいても動きは今までどおり
             string dir = "←→↑↓"[rnd.Next(4)].ToString();
             switch (dir)
             {

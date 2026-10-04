@@ -61,6 +61,7 @@ namespace Maze
         public int frozen { get; set; }     // 凍っているターン数
         public int charmed { get; set; }        // 魅了されている残りターン数（セイレーンの歌等）。魅了元へ強制的に近づく
         public Entity charmSource { get; set; } // 魅了元。charmed 中はこのEntityへ向かって強制移動する
+        public Entity frozenBy { get; set; }    // 凍らせた者。Ice Jerry に凍らされたときだけ入る（凍っている間の凍傷の判定に使う。眠り・時間停止では空）
         public int polymorphed { get; set; }    // 豚化している残りターン数（キルケーの呪い等）。近接攻撃・魔法が封じられる
         // パーティ外かつ非可視エンティティのアイテム取得メッセージを抑制するフラグ（一時的）
         [NonSerialized] internal bool suppressConsole;
@@ -164,8 +165,8 @@ namespace Maze
                         //
                         // Companion は Hobbit を攻撃しない（通れないが攻撃もしない）
                         if (this.isCompanion && e is Hobbit) return false;
-                        // Teiresias は誰からも攻撃されない（戦わない冥府の予言者NPCのため）
-                        if (e is Teiresias) return false;
+                        // 戦わない相手（Teiresias・降参した Circe）は誰からも攻撃されない（クエストの案内役を倒してしまわないため）
+                        if (e.isNonHostile) return false;
                         // @ と h は Dwarf を攻撃しない（通れないが攻撃もしない）
                         if ((this.graph == '@' || this.graph == 'h') && e is Dwarf) return false;
                         // 豚化中は近接攻撃できない（通れないが攻撃もしない）
@@ -214,7 +215,7 @@ namespace Maze
                             int freezeTime = this.getGemFreezeTime();
                             if (freezeTime > 0 && e.hit > 0 && rnd.Next(100) < 30)
                             {
-                                e.frozen = Math.Max(e.frozen, freezeTime);
+                                if (freezeTime > e.frozen) { e.frozen = freezeTime; e.frozenBy = null; }   // 時間停止で上書きしたら凍傷は止まる
                                 Console.WriteLine("{0} は時間が止まった！（{1}ターン）", e.name, freezeTime);
                                 revealGemEffect(this, Gem.GemAbility.TimeStop);
                             }
@@ -233,15 +234,8 @@ namespace Maze
 
                         if (e.hit <= 0)
                         {
-                            e.graph = '%';              // 死体に変える
+                            e.becomeCorpse();           // 死体に変え、持ち物を落とす準備をする
                             Console.WriteLine("{0} は {1} を倒した", this.name, e.name);
-                            // 死んだ生物の持ち物を床に落とす準備 (床への配置は、Logic で行う)
-                            foreach (Item i in e.itemlist)
-                            {
-                                i.entity.xpos = e.xpos; // 物のX,Yには、拾われた場所が入っているので、生物のX,Yで更新する
-                                i.entity.ypos = e.ypos;
-                                i.entity.graph = i.entity.graphOrig; // 例：' ' から '!' に戻す
-                            }
 
                             experience++;
                             if (experience >= 5)
@@ -275,7 +269,13 @@ namespace Maze
         public virtual void move(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
             if (!isLive()) return;
-            if (frozen > 0) { frozen--; return; }
+            if (frozen > 0)
+            {
+                applyFrostbite();               // Ice Jerry に凍らされている間は凍傷を負うことがある
+                frozen--;
+                if (frozen <= 0) frozenBy = null;
+                return;
+            }
             if (charmed > 0)
             {
                 // 移動してから減らす（移動中は charmed > 0 なので tryMove() で攻撃しない）
@@ -416,6 +416,37 @@ namespace Maze
         {
             ;                                       // 通常のものは殴られても何も変わらない
         }
+
+        // 倒れて死体になる。持ち物を落とす準備をする（床への配置は Logic.tick() で行う）
+        public void becomeCorpse()
+        {
+            graph = '%';
+            foreach (Item i in itemlist)
+            {
+                i.entity.xpos = xpos;   // 物のX,Yには、拾われた場所が入っているので、生物のX,Yで更新する
+                i.entity.ypos = ypos;
+                i.entity.graph = i.entity.graphOrig; // 例：' ' から '!' に戻す
+            }
+        }
+
+        // 凍傷: Ice Jerry に凍らされている間（frozenBy が Ice）、毎ターン15%で HP-1。HP が0になったら倒れる。
+        // 敵・Companion は move() の凍結の処理から、Hero は Logic.tick() の凍結のループから呼ぶ
+        public void applyFrostbite()
+        {
+            if (!(frozenBy is Ice) || hit <= 0) return;
+            if (rnd.Next(100) >= 15) return;
+            hit--;
+            Console.WriteLine("{0} は凍傷を負った！（HP-1）", name);
+            if (frozenBy.hit > 0) CombatLog.Add(frozenBy, this, CombatKind.Frostbite, 1);
+            if (hit <= 0)
+            {
+                Console.WriteLine("{0} は凍えて倒れた", name);
+                becomeCorpse();
+            }
+        }
+
+        // 戦わない相手か（Teiresias、降参したあとの Circe）。誰からも攻撃されず、Companion の AI も敵として扱わない
+        public virtual bool isNonHostile { get { return false; } }
 
         public virtual bool avoidsAttack(Entity attacker) // 攻撃をすり抜けるか（Shade等）
         {

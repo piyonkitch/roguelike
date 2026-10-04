@@ -51,10 +51,36 @@ namespace Maze
             hit = hitmax = 3;
             strength = strengthmax = 2;
             toughness = 0;
+            murmurWait = rnd.Next(1, 6);   // 一斉につぶやかないよう、最初の間をずらす
+        }
+
+        // 海峡の怪物と渦、7階の魔女のことを知っている乗組員のつぶやき
+        private static readonly string[] Lines = {
+            "…スキュラだ…六つの首が、一度に仲間を二人ずつさらっていった…",
+            "…あの怪物は硬くて強い。まともに斬り合って勝った者はいない…",
+            "…渦には近づくな…カリュブディスは船も人も、何もかも飲み込む…",
+            "…飲み込まれた者は、ずっと深い底へ吐き出されるという…",
+            "…向こう岸へ渡る道は二つ…怪物の脇か、渦の脇か…",
+            "…魔女の島へ行くなら、白い花をつけた黒い根を持っていけ…魔女の杖が効かなくなる…",
+        };
+
+        // Hero が近く（4歩以内）にいるとき、数ターンに1回つぶやく（台詞は全員で順番に回す）
+        private int murmurWait = 1;
+        private static int nextLine;
+
+        private void murmur(Entity target)
+        {
+            if (--murmurWait > 0) return;
+            if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) > 4) return;
+            string line = Lines[nextLine++ % Lines.Length];
+            Console.WriteLine("{0}：「{1}」", "呪われた乗組員", line);
+            CombatLog.AddTalk(this, target, line);
+            murmurWait = 8 + rnd.Next(6);   // 8〜13ターンおき
         }
 
         protected override void doMove(MazeAlgo maze, List<Entity> entitylist, Entity target)
         {
+            murmur(target);   // つぶやいても移動・攻撃は今までどおり
             string dir;
             if (Math.Abs(target.xpos - xpos) + Math.Abs(target.ypos - ypos) <= 3)
             {

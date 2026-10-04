@@ -43,6 +43,7 @@ namespace Maze
         MagicCast, MagicHit,                                    // Companion の魔法
         CritRing, Deflect, Barrier, PassWhoosh,                 // クリティカル・はじかれた・結界・すり抜け
         Bite, Breath, AcidSpit, IceFreeze, SirenSong, CirceWarp, GiantSmash, ShadeWhisper,   // 敵の攻撃
+        Frostbite,                                              // 凍傷（凍結の音を小さめに）
         Coin, Potion, Scroll,                                   // 拾う（金貨・ポーション・巻物）
     }
 
@@ -167,6 +168,7 @@ namespace Maze
                 case Sfx.Breath: return Roar(r, 0.65f);
                 case Sfx.AcidSpit: return Bubbles(r, 0.32f);
                 case Sfx.IceFreeze: return Add(Sparkle(r, 0.45f, 9, 3000, 6500, 0.3f), NoiseBurst(r, 0.45f, 0.2f, 6000, 0.08f));
+                case Sfx.Frostbite: return Gain(Get(Sfx.IceFreeze), 0.5f);
                 case Sfx.SirenSong: return Melody(new[] { 659.3f, 784f, 987.8f, 1318.5f }, 0.11f);
                 case Sfx.CirceWarp: return Warp(0.45f);
                 case Sfx.GiantSmash: return Add(Thump(0.6f, 90, 35, 0.35f, 0.95f), NoiseBurst(r, 0.6f, 0.15f, 500, 0.6f), Thump(0.6f, 50, 45, 0.3f, 0.4f));
