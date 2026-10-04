@@ -1289,6 +1289,26 @@ namespace Maze
             newvision();
         }
 
+#if DEBUG
+        // デバッグ用（Debug ビルドのみ）: 現在地を保存し、指定フロアへ直接ワープする
+        public void ctrlDebugWarp(int targetFloor)
+        {
+            if (targetFloor == floor) return;
+
+            saveCurrentFloor(hero.xpos, hero.ypos);
+
+            if (savedFloors.ContainsKey(targetFloor))
+            {
+                restoreFloor(targetFloor, hero.xpos, hero.ypos);
+            }
+            else
+            {
+                floor = targetFloor;
+                generateNewFloor();
+            }
+        }
+#endif
+
         public void ctrlUse(int index)
         {
             Item item = hero.itemlist[index];

@@ -65,6 +65,25 @@ namespace Maze
             Console.SetOut(new TextBoxWriter(textBoxConsole));
             logic.init();
 
+#if DEBUG
+            // デバッグ用: 5〜7階へ直接行くワープボタン（Debug ビルドのときだけ出る。Release ビルドには入らない）
+            int[] debugFloors = { 5, 6, 7 };
+            for (int i = 0; i < debugFloors.Length; i++)
+            {
+                int targetFloor = debugFloors[i];
+                Button debugButton = new Button();
+                debugButton.Text = targetFloor + "F";
+                debugButton.Location = new Point(375 + i * 65, 130);
+                debugButton.Size = new Size(60, 23);
+                debugButton.Click += (s, ev) =>
+                {
+                    logic.ctrlDebugWarp(targetFloor);
+                    afterAction();
+                };
+                this.Controls.Add(debugButton);
+            }
+#endif
+
             // 地図を 1マス Dots ピクセルの大きさにする（Designer では 17ピクセル用の 340x340）。
             // 広がった分だけ、地図より右の部品を右へ、ウィンドウを右と下へ広げ、メッセージ欄を下へ伸ばす
             int grow = Dots * Constant.NGRID - pic.Width;
