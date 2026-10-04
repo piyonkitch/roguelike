@@ -46,7 +46,10 @@ namespace Maze
     {
         Logic logic = new Logic();
 
-        const int Dots = 17;
+        const int Dots = 20;    // 1マスのピクセル数
+
+        // 日本語を出す部品（ボタン・メニュー・持ち物の一覧・ステータス欄・メッセージ欄・知らせ）のフォント
+        static readonly Font UiFont = new Font("Meiryo UI", 9);
 
         private System.Windows.Forms.Timer magicTimer;
 
@@ -80,6 +83,32 @@ namespace Maze
             }
             // ---- DEBUG ここまで ----
 
+            // 地図を 1マス Dots ピクセルの大きさにする（Designer では 17ピクセル用の 340x340）。
+            // 広がった分だけ、地図より右の部品を右へ、ウィンドウを右と下へ広げ、メッセージ欄を下へ伸ばす
+            int grow = Dots * Constant.NGRID - pic.Width;
+            int growY = Dots * Constant.NGRID - pic.Height;
+            int mapRight = pic.Right;
+            foreach (Control c in this.Controls)
+                if (!(c is MenuStrip) && c != pic && c.Left >= mapRight) c.Left += grow;
+            pic.Size = new Size(Dots * Constant.NGRID, Dots * Constant.NGRID);
+            textBoxConsole.Height += growY;
+            this.ClientSize = new Size(this.ClientSize.Width + grow, this.ClientSize.Height + growY);
+
+            // ボタン・メニュー・持ち物の一覧・ステータス欄・メッセージ欄は Meiryo UI（日本語が読みやすい）。
+            // フォーム自体の Font を変えると AutoScaleMode.Font で部品の大きさまで変わるので、部品ごとに設定する
+            foreach (Control c in this.Controls)
+                if (c != pic) c.Font = UiFont;
+            SetMenuFont(menuStrip1.Items);
+            // ステータス欄は1行が高くなるので、ステータス欄（8行）の下にメッセージ欄が重ならないよう、
+            // メッセージ欄の上端を下げる（下端はそのまま）
+            int consoleTop = labelStatus.Top + labelStatus.Font.Height * 8 + 6;
+            if (textBoxConsole.Top < consoleTop)
+            {
+                int bottom = textBoxConsole.Bottom;
+                textBoxConsole.Top = consoleTop;
+                textBoxConsole.Height = bottom - consoleTop;
+            }
+
             // 戦闘ビューを画面左に追加し、既存のコントロールを右へずらす
             int shift = BattleWidth + 12;
             foreach (Control c in this.Controls)
@@ -87,7 +116,7 @@ namespace Maze
             this.ClientSize = new Size(this.ClientSize.Width + shift, this.ClientSize.Height);
             battlePic = new PictureBox();
             battlePic.Location = new Point(12, 25);
-            battlePic.Size = new Size(BattleWidth, 340);
+            battlePic.Size = new Size(BattleWidth, pic.Height);
             battlePic.BackColor = Color.Black;
             this.Controls.Add(battlePic);
             battleView = new BattleView(battlePic, logic);
@@ -112,6 +141,15 @@ namespace Maze
             show();
         }
 
+        private static void SetMenuFont(ToolStripItemCollection items)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                item.Font = UiFont;
+                if (item is ToolStripMenuItem m) SetMenuFont(m.DropDownItems);
+            }
+        }
+
         private static int entityPriority(Entity e)
         {
             if (e.graph == '@' && !e.isCompanion) return 4; // Hero
@@ -128,6 +166,8 @@ namespace Maze
             Bitmap canvas = new Bitmap(pic.Width, pic.Height);
             //ImageオブジェクトのGraphicsオブジェクトを作成する
             Graphics g = Graphics.FromImage(canvas);
+            // 下地を地図欄の背景色で塗る。透明のままだと文字のふちが「透明な黒」と混ざり、黒い縁取りが出る
+            g.Clear(pic.BackColor);
 
             // 空間□と壁■を描画する
             for (int y = 0; y < Constant.NGRID; y++)
@@ -156,7 +196,12 @@ namespace Maze
 
             // キャラクター（生物と物）を描画する
             // 同じマスに複数エンティティがいる場合、優先度の高いものだけ描画する
-            Font fnt = new Font("MS UI Gothic", Dots-1);
+            // 文字はマスに収まるようピクセルで大きさを決め、マスの中央に描く
+            // （ポイント指定だと画面では大きくなり、_ などが下のマスにはみ出していた）
+            // Consolas の太字（日本語フォントだと \ が ¥ になり、魔法の斜めの記号が崩れる）
+            Font fnt = new Font("Consolas", Dots * 0.9f, FontStyle.Bold, GraphicsUnit.Pixel);
+            StringFormat cellFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            Func<int, int, RectangleF> cell = (cx, cy) => new RectangleF(Dots * cx, Dots * cy, Dots, Dots);
             Dictionary<string, Entity> cellTop = new Dictionary<string, Entity>();
             foreach (Entity e in logic.entitylist)
             {
@@ -173,7 +218,7 @@ namespace Maze
                 if (e is Gem gem)
                 {
                     using (Brush brush = new SolidBrush(gem.DisplayColor))
-                        g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                        g.DrawString(e.graph.ToString(), fnt, brush, cell(e.xpos, e.ypos), cellFormat);
                 }
                 else if (e is Altar altar)
                 {
@@ -181,12 +226,12 @@ namespace Maze
                         ? altar.embeddedGem.DisplayColor
                         : System.Drawing.Color.Gray;
                     using (Brush brush = new SolidBrush(altarColor))
-                        g.DrawString("_", fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                        g.DrawString("_", fnt, brush, cell(e.xpos, e.ypos), cellFormat);
                 }
                 else
                 {
                     Brush brush = e.isCompanion ? Brushes.Blue : Brushes.Red;
-                    g.DrawString(e.graph.ToString(), fnt, brush, Dots * e.xpos, Dots * e.ypos);
+                    g.DrawString(e.graph.ToString(), fnt, brush, cell(e.xpos, e.ypos), cellFormat);
                 }
             }
 
@@ -200,12 +245,13 @@ namespace Maze
                     if (ex < 0 || ex >= Constant.NGRID || ey < 0 || ey >= Constant.NGRID) break;
                     if (logic.maze.isWall(ex, ey)) break;
                     if (logic.maze.isVisible(ex, ey))
-                        g.DrawString(ef.symbol.ToString(), fnt, Brushes.Cyan, Dots * ex, Dots * ey);
+                        g.DrawString(ef.symbol.ToString(), fnt, Brushes.Cyan, cell(ex, ey), cellFormat);
                 }
             }
 
             //リソースを解放する
             fnt.Dispose();
+            cellFormat.Dispose();
             g.Dispose();
 
             //PictureBox1に表示する
@@ -244,7 +290,7 @@ namespace Maze
             // REVISIT 2015/09/06 Logic logic 中でゲームオーバー判定したほうが良いのだけど…
             if (logic.hero.hit <= 0)
             {
-                MessageBox.Show("やられた");
+                ShowInfo("Rogue Like", new[,] { { "やられた", "" } });
                 // スタティックコンストラクタを再実行したいので、logic.init() ではなく、アプリケーション再実行する
                 Application.Restart();
 //                logic.init();
@@ -486,18 +532,49 @@ namespace Maze
 
         private void toolStripMenuItemHelp_Click(object sender, EventArgs e)
         {
-            MessageBox.Show(
-@"↑↓←→  上下左右へ移動（テンキーの 8 2 4 6 ＝NumLock 解除時、h j k l でも移動できる）
->  <     下り階段・上り階段
-u         アイテムを使う (iで表示&選択してから)
-            4階の祭壇の上では、選んだ宝石を祭壇にはめ込む
-i         アイテムの一覧表示・非表示の切り替え (u, d, w, Wの前に表示と選択)
-            一覧が開いている間は ↑↓（k j）で選び、Enter で使う、Esc か i で閉じる
-d         アイテムを落とす
-w         武器を構える
-W         鎧を着る
-t         武器を解除する
-T         鎧を脱ぐ", "roguelikeのヘルプ");
+            ShowInfo("roguelikeのヘルプ", new[,] {
+                { "↑ ↓ ← →", "上下左右へ移動（テンキーの 8 2 4 6 ＝NumLock 解除時、h j k l でも移動できる）" },
+                { "> <", "下り階段・上り階段" },
+                { "u", "アイテムを使う（i で表示＆選択してから）\n4階の祭壇の上では、選んだ宝石を祭壇にはめ込む" },
+                { "i", "アイテムの一覧表示・非表示の切り替え（u, d, w, W の前に表示と選択）\n一覧が開いている間は ↑↓（k j）で選び、Enter で使う、Esc か i で閉じる" },
+                { "d", "アイテムを落とす" },
+                { "w", "武器を構える" },
+                { "W", "鎧を着る" },
+                { "t", "武器を解除する" },
+                { "T", "鎧を脱ぐ" },
+            });
+        }
+
+        // 画面の部品と同じフォントで知らせを出す（MessageBox は Windows 標準のフォントになり、桁もそろわないため）。
+        // rows は「キー」「説明」の2列の表。1列だけの知らせは、説明の列を空にする
+        private void ShowInfo(string title, string[,] rows)
+        {
+            using (Form dlg = new Form())
+            {
+                dlg.Text = title;
+                dlg.Font = UiFont;
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.MaximizeBox = dlg.MinimizeBox = false;
+                dlg.ShowInTaskbar = false;
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.AutoSize = true;
+                dlg.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+
+                TableLayoutPanel table = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Padding = new Padding(12, 12, 12, 4) };
+                table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                Font keyFont = new Font("Consolas", 10, FontStyle.Bold);   // キーは地図と同じ Consolas（記号が崩れない）
+                for (int i = 0; i < rows.GetLength(0); i++)
+                {
+                    table.Controls.Add(new Label { Text = rows[i, 0], AutoSize = true, Font = rows[i, 1] == "" ? UiFont : keyFont, Margin = new Padding(3, 4, 12, 4) }, 0, i);
+                    table.Controls.Add(new Label { Text = rows[i, 1], AutoSize = true, Margin = new Padding(3, 4, 3, 4) }, 1, i);
+                }
+                Button ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Font = UiFont, Size = new Size(80, 28), Anchor = AnchorStyles.Right, Margin = new Padding(3, 8, 3, 8) };
+                table.Controls.Add(ok, 1, rows.GetLength(0));
+                dlg.Controls.Add(table);
+                dlg.AcceptButton = ok;
+                dlg.ShowDialog(this);
+            }
         }
 
         //

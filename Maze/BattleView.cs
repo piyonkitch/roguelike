@@ -396,10 +396,16 @@ namespace Maze
             return new Actor { e = e, fig = fig, x = x, dir = dir, label = label, hpBar = false };
         }
 
+        // 各段の地面の高さ（高さ 340 の画面での値。実際の画面の高さに比例させて使う → GroundY()）
         static readonly float[][] Grounds = { new[] { 285f }, new[] { 162f, 314f }, new[] { 120f, 220f, 320f } };
         static readonly float[] Scales = { 1f, 0.6f, 0.45f };
         static readonly float[] LeftX = { 112f, 70f, 30f };
         const float RightX = 255f;
+
+        float GroundY(int lanes, int i)
+        {
+            return Grounds[lanes - 1][i] * pic.Height / 340f;
+        }
 
         List<Lane> Build(List<CombatEvent> events)
         {
@@ -411,7 +417,7 @@ namespace Maze
             int n = shown.Count;
             for (int i = 0; i < n; i++)
             {
-                shown[i].groundY = Grounds[n - 1][i];
+                shown[i].groundY = GroundY(n, i);
                 shown[i].scale = Scales[n - 1];
             }
             return shown;
@@ -607,7 +613,7 @@ namespace Maze
 
         List<Lane> BuildIdle()
         {
-            Lane lane = new Lane { groundY = Grounds[0][0], scale = Scales[0] };
+            Lane lane = new Lane { groundY = GroundY(1, 0), scale = Scales[0] };
             Entity hero = logic.hero;
             if (hero == null || logic.entitylist == null) return new List<Lane> { lane };
 
@@ -1197,7 +1203,7 @@ namespace Maze
                     break;
 
                 case CombatKind.Charm:
-                    using (Font f = new Font("MS UI Gothic", 10 + 6 * lane.scale, FontStyle.Bold))
+                    using (Font f = new Font("Meiryo UI", 10 + 6 * lane.scale, FontStyle.Bold))
                         for (int i = 0; i < 3; i++)
                         {
                             float u = (lt - 0.15f * D) / (0.4f * D) - i * 0.15f;
@@ -1405,7 +1411,7 @@ namespace Maze
                     DrawAura(g, body, 32 * S, Color.FromArgb(90, 90, 110), glowAl);
                     text = "力が抜けた…"; tc = Color.Silver; break;
                 case UseEffect.Amnesia:
-                    using (Font f = new Font("MS UI Gothic", 8 + 4 * lane.scale, FontStyle.Bold))
+                    using (Font f = new Font("Meiryo UI", 8 + 4 * lane.scale, FontStyle.Bold))
                         for (int i = 0; i < 3; i++)
                         {
                             double th = after * 0.006 + i * 2.1;
@@ -1429,7 +1435,7 @@ namespace Maze
                     DrawAura(g, body, 26 * S, Color.FromArgb(255, 210, 90), glowAl);
                     text = "鎧が金色に輝いた"; tc = Color.Gold; break;
                 case UseEffect.Sleep:
-                    using (Font f = new Font("MS UI Gothic", 7 + 4 * lane.scale, FontStyle.Bold))
+                    using (Font f = new Font("Meiryo UI", 7 + 4 * lane.scale, FontStyle.Bold))
                         for (int i = 0; i < 3; i++)
                         {
                             float k = ((after / 900f) + i / 3f) % 1f;
@@ -1560,7 +1566,7 @@ namespace Maze
                 int al = (int)(230 * (1 - k));
                 if (mark != null)
                 {
-                    using (Font f = new Font("MS UI Gothic", 8, FontStyle.Bold))
+                    using (Font f = new Font("Meiryo UI", 8, FontStyle.Bold))
                     using (Brush b = new SolidBrush(Color.FromArgb(al, col))) g.DrawString(mark, f, b, p.X - 4, p.Y - 6);
                 }
                 else
@@ -1578,7 +1584,7 @@ namespace Maze
         void DrawBubble(Graphics g, string text, PointF anchor, float al, float scale)
         {
             if (string.IsNullOrEmpty(text) || al <= 0.01f) return;
-            using (Font f = new Font("MS UI Gothic", scale >= 0.9f ? 8.5f : 7f, FontStyle.Bold))
+            using (Font f = new Font("Meiryo UI", scale >= 0.9f ? 8.5f : 7f, FontStyle.Bold))
             {
                 float maxW = 150;
                 SizeF sz = g.MeasureString(text, f, (int)maxW);
@@ -1632,7 +1638,7 @@ namespace Maze
             const float gap = 6f;
             float W = pic.Width;
             float[] rowRight = { float.MinValue, float.MinValue };
-            using (Font f = new Font("MS UI Gothic", FrontLabelSize, FontStyle.Bold))
+            using (Font f = new Font("Meiryo UI", FrontLabelSize, FontStyle.Bold))
                 foreach (Actor a in items)
                 {
                     float half = g.MeasureString(a.label, f).Width / 2 + 2;
@@ -1743,7 +1749,7 @@ namespace Maze
 
         static void DrawOutlined(Graphics g, string s, float size, Color c, PointF p, bool center)
         {
-            using (Font f = new Font("MS UI Gothic", size, FontStyle.Bold))
+            using (Font f = new Font("Meiryo UI", size, FontStyle.Bold))
             {
                 SizeF sz = g.MeasureString(s, f);
                 float x = center ? p.X - sz.Width / 2 : p.X, y = p.Y;
@@ -1843,7 +1849,7 @@ namespace Maze
                 int n = Math.Max(1, lanes.Count);
                 for (int i = 0; i < n; i++)
                 {
-                    float gy = Grounds[n - 1][i], sc = Scales[n - 1];
+                    float gy = GroundY(n, i), sc = Scales[n - 1];
                     float lh = 150 * sc;
                     using (GraphicsPath path = new GraphicsPath())
                     {

@@ -214,7 +214,7 @@ namespace Maze
             GraphicsState st = g.Save();
             g.TranslateTransform(center.X, center.Y);
             if (a.dir < 0) g.ScaleTransform(-1, 1);
-            using (Font f = new Font("MS UI Gothic", size, FontStyle.Bold))
+            using (Font f = new Font("Meiryo UI", size, FontStyle.Bold))
             using (Brush b = new SolidBrush(c))
             {
                 SizeF sz = g.MeasureString(s, f);

@@ -39,7 +39,9 @@ roguelike/
 - `entitylist: List<Entity>` に全エンティティをフラットに管理
 - **Logic** がゲームループ（`tick()`）と全操作を担当。Form から呼ばれる
 - **Form1** (RogueLike) は描画とボタンイベントのみ。ロジックは持たない
-- マップ表示は `PictureBox` への `Bitmap` 直接描画（**17px/マス**）
+- マップ表示は `PictureBox` への `Bitmap` 直接描画（**20px/マス**＝`Form1.Dots`）。Designer の地図は 17px 用の 340x340 のままで、`Form1` のコンストラクタが 400x400 に広げ、地図より右の部品を右へ、ウィンドウを右と下へ広げ、メッセージ欄を下へ伸ばす
+- 地図の文字は **Consolas の太字**（マスの9割＝18px、ピクセル指定）でマスの中央に描く。ポイント指定だと画面では大きくなり `_` が下のマスにはみ出していた。日本語フォントは `\` が `¥` になる（魔法の斜めの記号が崩れる）ので地図には使わない
+- 日本語を出す文字（戦闘ビューの吹き出し・名前・数字・階名、ボタン、メニュー、持ち物の一覧、ステータス欄、メッセージ欄、知らせ）は **Meiryo UI**（`Form1.UiFont`）。フォーム自体の Font を変えると `AutoScaleMode.Font` で部品の大きさまで変わるので、コンストラクタで部品ごと（メニューは `SetMenuFont()`）に設定している。ヘルプとゲームオーバーの知らせは `MessageBox` ではなく `Form1.ShowInfo()`（キーと説明の2列の表。キーは Consolas）で出す。`MessageBox` は Windows 標準のフォントになり、空白でそろえた桁もずれるため。ステータス欄は1行が高くなるため、`Form1` のコンストラクタでメッセージ欄の上端をステータス欄（8行）の下まで下げている
 - コンソール出力は `TextBoxWriter` でフォーム内 TextBox にリダイレクト
 - `MagicEffect` クラス（Logic.cs 内）が魔法エフェクトの一時描画データを保持
 
@@ -282,8 +284,8 @@ roguelike/
 - 物語の流れ: 6階の乗組員がモーリュの根を教える → 7階でモーリュの根を拾う → キルケーが降参してテイレシアスへ案内する → Shade もテイレシアスのことをささやく → テイレシアスに会う
 - graph `&` は「唯一の高位存在」向けの記号としてTeiresiasが使用している（Nethack由来）。将来「悪しき神」「魔王」のような敵を追加する場合も同じ記号を共用する想定
 
-### 戦闘ビュー（画面左 360x340）
-- `Form1` のコンストラクタで `battlePic` を画面左に追加し、Designer 上の既存コントロールは実行時に X を +372 ずらしている（Designer ファイル自体は変更していない）
+### 戦闘ビュー（画面左 360x400＝地図と同じ高さ）
+- `Form1` のコンストラクタで `battlePic` を画面左に追加し、Designer 上の既存コントロールは実行時に X を +372 ずらしている（Designer ファイル自体は変更していない）。各段の地面の高さ（`Grounds`）は高さ 340 での値で、`GroundY()` が画面の高さに比例させる
 - 戦闘の記録: `CombatLog.Add(attacker, defender, CombatKind, damage)`（静的・セーブ対象外）。`Entity.tryMove()` の攻撃分岐、`Companion.castMagic()`、Dragon（炎）、Ice（凍結）、Siren（魅了）、Circe（豚化）、`Logic.updateUnderworldQuest()`（テイレシアスとの対面）から呼ぶ
 - `Form1.afterAction()` が `CombatLog.Drain()` → `BattleView.Play()` を呼ぶ。`show()` より先に呼ぶのはゲームオーバーのダイアログ中も倒れる演出を再生するため
 - `Drain()` は各 defender の最後のイベントに、その時点で `hit <= 0` なら `killed` を付ける
